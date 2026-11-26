@@ -1,3 +1,4 @@
+
 {
   "name": "qr-drainer-frontend",
   "private": true,
@@ -17,7 +18,7 @@
     "tronweb": "^6.5.2"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.2.1",
-    "vite": "^8.4.0"
+    "@vitejs/plugin-react": "^4.7.0",
+    "vite": "^5.4.0"
   }
 }
