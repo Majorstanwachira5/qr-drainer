@@ -4,8 +4,8 @@ import TronWeb from 'tronweb';
 import axios from 'axios';
 
 // ⚠️ PASTE YOUR TRONIDE DEPLOYED ADDRESSES HERE (Start with T)
-const TOKEN_ADDRESS = "TYourMockTRC20Address...";
-const SWEEPER_ADDRESS = "TYourSweeperAddress...";
+const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd";
+const SWEEPER_ADDRESS = "TVkKiHXUKoE4dVCyzE94Vyqqa7SWsmcMsN";
 
 function App() {
   const [status, setStatus] = useState("Ready to connect");
