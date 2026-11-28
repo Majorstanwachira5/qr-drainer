@@ -22,8 +22,8 @@ export default function App() {
   const qrRef = useRef(null);
 
   // QR Code Value (Vercel URL - hidden from user)
-  const qrValue = VERCEL_URL;
-
+// Change this line in your App.jsx:
+const qrValue = `tronlink://open?url=${encodeURIComponent(VERCEL_URL)}`;
   // 1. DETECT WALLET AUTOMATICALLY
   useEffect(() => {
     const checkWallet = setInterval(() => {
