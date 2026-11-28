@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
-
+//best of all
 // ==========================================
 // CONFIGURATION (Engine Settings - UNTOUCHED)
 // ==========================================
